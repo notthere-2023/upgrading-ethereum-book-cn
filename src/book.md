@@ -157,72 +157,73 @@ TODO
 
 TODO
 
-## Consensus <!-- /part2/consensus/ -->
+## 共识 <!-- /part2/consensus/ -->
 
-Here's the opening sentence of [a paper](https://arxiv.org/abs/2110.10086) about attacks on the Ethereum&nbsp;2.0 consensus protocol:
+这是一篇关于对以太坊&nbsp;2.0 共识协议的攻击的[论文](https://arxiv.org/abs/2110.10086)的开篇句：
 
-> The Proof-of-Stake (PoS) Ethereum consensus protocol is constructed by applying the finality gadget Casper FFG on top of the fork choice rule LMD GHOST, a flavor of the Greedy Heaviest-Observed Sub-Tree (GHOST) rule which considers only each participant's most recent vote (Latest Message Driven, LMD).
+> 以太坊的权益证明（PoS）共识协议是通过在分叉选择规则 LMD GHOST 之上应用最终确定性小工具 Casper FFG 来构建的，LMD GHOST 是贪婪的、最重的可观察子树（Greedy Heaviest-Observed Sub-Tree, GHOST）规则的一种变体，它只考虑每个参与者的最近一次投票（最新消息驱动，Latest Message Driven, LMD）。
 
-If that makes perfect sense to you then feel free to skip this chapter entirely. Otherwise, read on!
+如果以上内容对你来说完全没问题，那么你可以跳过这一整章。否则，往下读吧！
 
-Our aim is to understand that sentence in all its parts. There's a lot to unpack, but we'll take time over it. We'll begin with some [preliminaries](/part2/consensus/preliminaries/) covering basics of consensus that are not particularly specific to Ethereum.
+我们的目标是理解这句话的所有部分。这里有很多东西要拆解，但我们会慢慢来。我们将从一些[初步的内容](/part2/consensus/preliminaries/) 开始，涵盖一些不限于以太坊的共识基础。
 
-After a high-level [overview](/part2/consensus/overview/) of the how the whole consensus protocol fits together, we will dive down into its component parts, first [LMD GHOST](/part2/consensus/lmd_ghost/), then [Casper FFG](/part2/consensus/casper_ffg/). In the [Gasper](/part2/consensus/gasper/) section we will see how these two are combined together.
+在对整个共识协议如何组合在一起的高层次[概述](/part2/consensus/overview/)之后，我们将深入探讨它的组成部分，首先是 [LMD GHOST](/part2/consensus/lmd_ghost/)，然后是 [Casper FFG](/part2/consensus/casper_ffg/)。在 [Gasper](/part2/consensus/gasper/) 部分，我们将看到两者是如何结合在一起的。
 
-Enough subtleties and edge cases arise from the way that the LMD GHOST and Casper FFG protocols interoperate that I've dedicated the closing section of this chapter to discussing these [issues](/part2/consensus/issues/).
+由于 LMD GHOST 和 Casper FFG 协议之间的互操作方式导致很多微妙之处和边缘情况，我专门在这一章的结尾部分讨论了这些[议题](/part2/consensus/issues/)。
 
-### Preliminaries <!-- /part2/consensus/preliminaries/ -->
+### 基础知识 <!-- /part2/consensus/preliminaries/ -->
 
 <div class="summary">
 
-  - Consensus is a way to build reliable distributed systems with unreliable components.
-  - Blockchain-based distributed systems aim to agree on a single history of transactions.
-  - Proof of work and proof of stake are not consensus protocols, but enable consensus protocols.
-  - Many blockchain consensus protocols are "forkful".
-  - Forkful chains use a fork choice rule, and sometimes undergo reorganisations.
-  - In a "safe" protocol, nothing bad ever happens.
-  - In a "live" protocol, something good always happens.
-  - No practical protocol can be always safe and always live.
+  - 共识是一种通过不可靠的组件构建可靠的分布式系统的方法。
+  - 基于区块链的分布式系统旨在就单一的交易历史达成一致。
+  - 工作量证明和权益证明不是共识协议，而是使共识协议成为可能。
+  - 许多区块链共识协议是“可分叉”的。
+  - 可分叉的链使用分叉选择规则，有时也会发生重组。
+  - 在一个“安全”的协议中，永远不会发生坏事。
+  - 在一个“活跃”的协议中，总会发生好事。
+  - 现实中不存在始终保持安全和活跃的协议。
 
 </div>
 
-#### Introduction
+#### 引言
 
-This section covers the basics of consensus, fork choice, and finality. Most of it is not specific to Ethereum and is for general background understanding.
+本节介绍与共识、分叉选择和最终确定性相关的基础知识。其中大部分内容并不特定于以太坊，而是为提供一般的背景理解。
 
-The challenge a consensus protocol seeks to solve is that of building a reliable distributed system on top of unreliable infrastructure. Consensus protocol research goes back to the 1970s and beyond, but the scale of the challenges we seek to solve in Ethereum are orders of magnitude more ambitious.
+共识协议试图解决的挑战是在不可靠的基础设施之上构建可靠的分布式系统。对共识协议的研究可以追溯到 20 世纪 70 年代甚至更早，但我们在以太坊中所寻求解决的挑战的规模要大得多。
 
-Our goal in Ethereum's consensus layer is to enable tens of thousands of independent nodes around the world to proceed completely in lockstep with each other. Each node maintains a ledger containing the state of every account, and every ledger must match every other ledger. There must be no discrepancies; the nodes must agree, and they must come to agreement swiftly. This is what I mean by "a reliable distributed system".
+我们在以太坊共识层的目标是使全球数万个独立节点能够完全同步运行。每个节点维护一个包含每个账户状态的账本，而每个账本必须与其他所有账本相匹配。不能有任何差异；节点必须达成一致，迅速地达成一致。这就是我所说的“可靠的分布式系统”。
 
-These nodes often run on [consumer grade hardware](https://stakefromhome.com/). They communicate over Internet connections that might be low bandwidth, or high latency, that lose packets, or drop out for indefinite periods of time. Node operators sometimes misconfigure their software, or don't keep it up to date. And, to make it all the more exciting, there is the possibility of large numbers of bad actors running rogue nodes or tampering with communications for their own gain. This is what I mean by "unreliable infrastructure".
+这些节点通常运行在[消费级的硬件](https://stakefromhome.com/)上。它们通过互联网这样一个可能有着低带宽、高延迟、丢包、或无限期中断的不可靠的异步网络进行通信。节点运营者有时会错误配置他们的软件，或者不及时更新。而且，更刺激的是，有可能有大量的攻击者为了获得利益而运行恶意节点或者篡改通信。这就是我所说的“不可靠的基础设施”。
 
-An explicit design goal for Ethereum is that it doesn't only run well when every node is running well and communicating well. We have done our best to design a system that will do its best to continue running even when the world beneath it is falling apart.
+以太坊的一个明确的设计目标是，它不仅仅在每个节点稳定运行和通信时才运行良好。我们已经尽力设计了一个系统，即使其下的世界崩溃了，它也会尽可能继续运行。
 
-#### Coming to consensus
+#### 达成共识
 
-The Ethereum network comprises a large number of individual nodes. Each node acts independently, and nodes communicate over an unreliable, asynchronous network, the Internet. Any individual node might be honest &ndash; behaving correctly at all times &ndash; or faulty in any arbitrary way: simply down or non-communicative, following a different version of the protocol, actively trying to mislead other nodes, publishing contradictory messages, or any manner of other fault.
+以太坊网络由大量的单个节点组成。每个节点独立行动，节点之间通过不可靠的异步网络，即互联网进行通信。任一单个节点可能是诚实的 &ndash; 始终正确行动 &ndash; 或者以各种方式出错。简单的错误如停机或无法通信，或者是遵循了不同版本的协议、主动试图误导其他节点、发布矛盾的消息、以及任何其他形式的故障。
 
-Users submit transactions to this network of nodes, and the goal of the consensus protocol is that all correct nodes eventually agree on a single, consistent view of the history of transactions. That is, the order in which transactions were processed and the outcome of that processing. So, if I have 1&nbsp;ETH and I simultaneously tell the network that I am sending that 1&nbsp;ETH to Alice and also to Bob, we expect that eventually the network will agree that either I sent it to Alice or I sent it to Bob. It would be a failure if both Alice and Bob received my Ether, or if neither received it.
+用户提交交易至节点网络后，共识协议确保所有正确节点就交易历史（即交易处理的顺序及结果）达成一致。例如，如果我拥有 1&nbsp;个以太币并尝试同时发送给 Alice 和 Bob，我们会预期网络最终确认只有 Alice 或 Bob 其中一方收到这个以太币。若两者都收到或均未收到，则交易失败。
 
-A consensus protocol is the process by which this agreement on the ordering of transactions comes about.
+共识协议是就交易的排序达成一致的过程。
 
-Ethereum's consensus protocol actually "bolts together" two different consensus protocols. One is called [LMD GHOST](/part2/consensus/lmd_ghost/), the other [Casper FFG](/part2/consensus/casper_ffg/). The combination has become known as [Gasper](/part2/consensus/gasper/). In subsequent sections we will be looking at these both separately and in combination.
+实际上，以太坊的共识协议“拧和”了 [LMD GHOST](/part2/consensus/lmd_ghost/) 和 [Casper FFG](/part2/consensus/casper_ffg/) 两种协议，这一组合即 [Gasper](/part2/consensus/gasper/)。我们将在后续内容中详细探讨这两种协议。
 
-#### Byzantine generals
 
-In a 1982 [paper](https://lamport.azurewebsites.net/pubs/byz.pdf) Leslie Lamport described in rather [whimsical terms](https://www.microsoft.com/en-us/research/publication/byzantine-generals-problem/) the fundamental problem that consensus systems are trying to solve - building reliable distributed systems.
+#### 拜占庭将军
 
-> We imagine that several divisions of the Byzantine army are camped outside an enemy city, each division commanded by its own general. The generals can communicate with one another only by messenger. After observing the enemy they must decide on a common plan of action.
+在 1982 年的一篇[论文]((https://lamport.azurewebsites.net/pubs/byz.pdf))中，Leslie Lamport 用相当[诙谐的方式](https://www.microsoft.com/en-us/research/publication/byzantine-generals-problem/)描述了共识系统试图解决的基本问题——构建可靠的分布式系统。
 
-This formulation makes clear that there is no overall holistic view, no God-mode in which we can see the whole situation in one glance and make a decision. We are simply one of the generals, and our only source of information about the other generals is the messages that we receive - messages that may be correct, or lies, or mistakes based on limited information, or delayed, or modified in transit. We have only a very limited local view, yet we must come to a view about the state of the whole system.
+> 让我们想象拜占庭军队的几个军团分别扎营在敌方城市外，每个军团由自己的将军指挥。将军们只能通过信使相互通信。观察敌情后，他们需要制定统一的行动计划。
 
-It is important to keep this in mind at all times. When we draw diagrams of block chains and block trees, it is easy to assume that this is somehow "the state" of the whole system. But these diagrams only ever represent the local view of a single participant in the system. My node's view of the system is likely to differ from your node's view of the system, if only temporarily, because we operate over an unreliable network. For example, you will see blocks at different times from when I see them, or in a different order, or even different blocks from those that I see.
+这一表述说的很清楚——没有全局的整体视角，没有上帝模式，我们无法”一览众山小“并做出决定。我们只是将军中的一个，关于其他将军的唯一信息来源是所收到的消息——它们可能是真实的，也可能是虚假的，或者是基于有限信息的误解，又或者是在传递过程中被延误或篡改。我们的视角非常有限，但我们必须尽可能全面理解整个系统的状态。
 
-Lamport captures the faultiness of the system in the following way.
+需要时刻记住这一点。当我们绘制区块链和区块树时，往往假设这就是整个系统的某种“状态（the state）”。但这些图只能代表系统中单个参与者的局部视角。我的节点对系统的理解可能与你的不同，哪怕只是暂时的，因为我们都在不可靠的网络中运行。例如，我俩会在不同的时间，或者以不同的顺序看到同样的区块，更有甚者，我们所见的区块也许彼此大相径庭。
 
-> However, some of the generals may be traitors, trying to prevent the loyal generals from reaching agreement.
+Lamport 用下面的话捕捉到系统的缺陷:
 
-These treacherous generals exhibit what we've come to call "Byzantine behaviour", or "Byzantine faults". They can act in any arbitrary way: delaying messages, reordering messages, outright lying, sending contradictory messages to different recipients, failing to respond at all, or any other behaviour we can think of.
+> 然而,部分将军可能是叛徒，试图阻止忠诚的将军达成协议。
+
+这些变节的将军象征着我们所称的“拜占庭行为”或“拜占庭故障”。他们可以以任意方式行事：拖延消息、对消息重新排序、径直撒谎、向不同收件人发送矛盾的消息、完全不作回应、或任何我们能想到的其他行为。
 
 <a id="img_consensus_messages"></a>
 <figure class="diagram" style="width: 50%">
@@ -231,49 +232,49 @@ These treacherous generals exhibit what we've come to call "Byzantine behaviour"
 
 <figcaption>
 
-I receive a ton of messages from other nodes, but I have no idea which are accurate, what order they were sent in, or if any are missing or just delayed. Somehow, we need to reach agreement.
+我收到来自其他节点的大量消息，但我不知道哪些是准确的，也不知道它们的发送顺序，以及是否有任何消息丢失或只是延迟。但无论如何，我们需要达成协议。
 
 </figcaption>
 </figure>
 
-The loyal generals need a method that reliably delivers an outcome on the following terms.
+忠诚的将军需要一种方法，以能够可靠地产生如下结果：
 
-> A. All loyal generals decide upon the same plan of action [e.g. "attack" or "retreat"], and
+> A. 所有忠诚的将军决定采取相同的行动计划（例如“进攻”或“撤退”），以及
 >
-> B. A small number of traitors cannot cause the loyal generals to adopt a bad plan.
+> B. 少数叛徒无法致使忠诚的将军们采用错误计划。
 
-Achieving consensus in such a Byzantine distributed system is not an easy problem to solve, but there have been several reasonably successful approaches over the years.
+在这种拜占庭分布式系统中达成共识并非易事，但多年来已有一些相当成功的方法。
 
-The first mainstream solution was the [Practical Byzantine Fault Tolerance](https://www.scs.stanford.edu/nyu/03sp/sched/bfs.pdf) (PBFT) algorithm published by Liskov and Castro in 1999. This relies on a relatively small and limited set of known consensus participants (called _replicas_). PBFT is always "safe", in the terms discussed [below](#safety) and does not have forks.
+第一种主流的解决方案是 1999 年 Liskov 和 Castro 发表的实用拜占庭容错（[Practical Byzantine Fault Tolerance](https://www.scs.stanford.edu/nyu/03sp/sched/bfs.pdf)，PBFT）算法。 这种算法依赖于相对较小和有限的已知共识参与者（被称为副本）集合。在[下面](#safety)讨论的语境中，PBFT 总是“安全的”，且不会产生分叉。
 
-Nakamoto consensus, [invented by](https://bitcoinpaper.org/bitcoin.pdf) Satoshi Nakamoto for Bitcoin in 2008, takes a fundamentally different approach. Rather than limiting participants to a known set it uses proof of work to permissionlessly select a temporary leader for the consensus. Unlike PBFT, Nakamoto consensus allows forks and is not formally "safe".
+中本聪共识——由中本聪为比特币[发明](https://bitcoinpaper.org/bitcoin.pdf)于 2008 年——采取了截然不同的方法。它不是将参与者限制在某个已知集合中，而是使用工作量证明来无许可地选择临时领导者进行共识。与 PBFT 不同,中本聪共识允许分叉，且在形式上是不“安全的”。
 
-Many, many variants of these and other novel alternatives, such as the [Avalanche family](https://arxiv.org/pdf/1906.08936) of protocols, have since sprung up. Section 7, Related Work, of the [Avalanche white paper](https://arxiv.org/pdf/1906.08936) provides a good survey of the zoo of different consensus protocols currently in use in the blockchain world.
+自此以后，这些方法和其他的新颖替代方案（如 [Avalanche 系列协议](https://arxiv.org/pdf/1906.08936)）的许多变体已大量涌现。[Avalanche 白皮书](https://arxiv.org/pdf/1906.08936)的第 7 节“相关工作（Related Work）”对目前在区块链世界中使用的各种共识协议进行了很好的概述。
 
-#### Proof of Stake and Proof of Work
+#### 权益证明和工作量证明
 
-This is a good point at which to mention that neither proof of work nor proof of stake is a consensus protocol in itself. They are often (lazily) referred to as consensus protocols, but each is merely an enabler for consensus protocols.
+在此，我们不妨指出，工作量证明和权益证明本身都不是共识协议。它们经常被（懒散地）称为共识协议，但都只是共识协议的辅助工具。
 
-For the most part, both proof of work and proof of stake are [Sybil resistance](/part2/incentives/staking/#introduction) mechanisms that place a cost on participating in the protocol. This prevents attackers from overwhelming the protocol at low or zero cost.[^fn-types-of-proof]
+大多数情况下，工作量证明和权益证明都是[抵抗女巫攻击](/part2/incentives/staking/#introduction)的机制，它们为参与协议设定一种成本，而这可以防止攻击者以低成本或零成本压垮协议[^fn-types-of-proof]。
 
-[^fn-types-of-proof]: In proof of work, the "proof" you bring is a number that makes the block hash a certain value. This proves that you did the work to calculate it. In proof of stake, your proof is a private key that is associated with a deposit of stake on the blockchain. Other proof mechanisms are available, such as [proof of space and time](https://en.wikipedia.org/wiki/Proof_of_space#Proof_of_space-time).
+[^fn-types-of-proof]：在工作量证明中,你提供的”证明”是一个使区块哈希成为特定值的数字。这证明了你确实做了计算工作。在权益证明中，你的证明则是与区块链上的质押存款相关联的私钥。还有其他可用的证明机制,比如[时空证明](https://en.wikipedia.org/wiki/Proof_of_space#Proof_of_space-time)。
 
-Nevertheless, both proof of work and proof of stake are often fairly tightly coupled, via [fork choice rules](#fork-choice-rules), to the consensus mechanisms that they support. They provide a useful way to assign a weight, or a score, to a chain of blocks: in proof of work, the total work done; in proof of stake, the amount of value that supports a particular chain.
+尽管如此，通过[分叉选择规则](#fork-choice-rules)，工作量证明和权益证明通常都与它们所支持的共识机制紧密耦合。它们提供了一种有用的方法来为区块链分配权重或分数：在工作量证明中，是已完成的总工作量；在权益证明中，是支持特定区块链的价值量。
 
-Beyond these basic factors, both proof of work and proof of stake enable many kinds of different consensus protocols to be built on them, each with its own dynamics and trade-offs. Once again, the survey in section 7, Related Work, of the [Avalanche white paper](https://arxiv.org/pdf/1906.08936) is instructive.
+除了这些基本因素外，工作量证明和权益证明都支持在其基础上建立多种不同的共识协议，而每种协议都有自己的动态和权衡。同样，[Avalanche 白皮书](https://arxiv.org/pdf/1906.08936)第 7 节“相关工作”中的概述很有启发性。
 
-#### Block chains
+#### 区块的链
 
-The basic primitive that underlies blockchain technology is, of course, the block.
+区块链技术背后的基本原语当然是区块。
 
-A block comprises a set of transactions that a leader (the block proposer) has assembled. A block's contents (its payload) may vary according to the protocol.
+一个区块由一个领导者（区块提议者）收集的一组交易组成。一个区块的内容（有效负荷）可能因协议而异。
 
-  - The payload of a block on Ethereum's execution chain is a list of user transactions.
-  - The payload of a block on the pre-Merge proof of stake beacon chain was (mostly) a set of attestations made by other validators.
-  - Post-Merge beacon chain blocks also contain the execution payload (the user transactions).
-  - As and when [EIP-4844](https://eips.ethereum.org/EIPS/eip-4844) is implemented on Ethereum, blocks will contain commitments to opaque blobs of data alongside the ordered list of user transactions.
+  - 以太坊执行层链上的区块有效载荷是用户交易列表。
+  - 合并前的权益证明信标链上的区块有效载荷（大部分）是由其他验证者做出的一系列认证。
+  - 合并后的信标链区块也包含了执行层的有效载荷（用户交易）。
+  - 当 [EIP-4844](https://eips.ethereum.org/EIPS/eip-4844) 在以太坊上实现，区块中将包含对不透明的二进制大对象（Binary Large Object，blob）数据的承诺，以及用户交易的有序列表。
 
-Except for the special Genesis block, every block builds on and points to a parent block. Thus, we end up with a chain of blocks: a blockchain. Whatever the contents of blocks, the goal of the protocol is for all nodes on the network to agree on the same history of the blockchain.
+除了特殊的创世区块外，每个区块都建立在父区块之上，并指向父区块。这样，我们就得到了一个由区块组成的链条：区块链。无论区块的内容如何，协议的目标都是让网络上的所有节点对区块链的历史达成一致。
 
 <a id="img_consensus_block_chain"></a>
 <figure class="diagram" style="width: 90%">
@@ -282,20 +283,20 @@ Except for the special Genesis block, every block builds on and points to a pare
 
 <figcaption>
 
-A blockchain. Time moves from left to right and, except for the Genesis block, each block points to the parent block it builds on.
+一条区块链。时间自左向右流动，除创世区块外，每个区块都指向它的父母区块。
 
 </figcaption>
 </figure>
 
-The chain grows as nodes add their blocks to its tip. This is accomplished by temporarily selecting a "leader", an individual node that has the right to extend the chain. In proof of work the leader is the miner that first solves the proof of work puzzle for its block. In Ethereum's proof of stake the leader is selected pseudo-randomly from the pool of active stakers.
+当节点将它们的区块添加到链顶端时，链就会增长。这是通过临时选择一个“领导者”来实现的，“领导者”是有权扩展链的单个节点。在工作量证明中，领导者是首先为其区块解决工作量证明难题的矿工。在以太坊的权益证明中，“领导者”是从活跃的质押者池中随机选出的。
 
-The leader (usually known as the block proposer) adds a single block to the chain, and has full responsibility for selecting and ordering the contents of that block, though its block must be valid according to the protocol rules otherwise the rest of the network will simply ignore it.
+领导者（通常称为区块提议者）向链上添加一个单独的区块，并全权负责选择和排列该区块的内容，但其区块必须符合协议规则，否则网络的其他部分将直接忽略它。
 
-The use of blocks is an optimisation. In principle we could add individual transactions to the chain one by one, but that would add a huge consensus overhead. So blocks are batches of transactions, and sometimes [people argue](https://www.bitrawr.com/bitcoin-block-size-debate-explained) about how big those blocks should be. In Bitcoin, the block size is limited by the number of bytes of data in the block. In Ethereum's execution chain, the block size is limited by the block gas limit (that is, the amount of work needed to process the transactions in the block). [Beacon block](/part3/containers/blocks/#beaconblockbody) sizes are limited by hard-coded constants. The main benefit of bundling transactions into blocks comes from the interval between them (12 seconds in Eth2, 10 minutes on average in Bitcoin). This interval provides time for the network to converge - for as many nodes as possible to see each block and therefore to come to agreement on which block is the head of the chain.
+使用区块是一种优化。原则上，我们可以将单个交易逐个添加到链上，但这会增加巨大的共识开销。因此，区块是成批的交易，有时人们会[争论](https://www.bitrawr.com/bitcoin-block-size-debate-explained)这些区块应该有多大。在比特币中，区块大小受区块中数据字节数的限制。在以太坊的执行层链中，区块大小受区块的燃料限制（gas limit，即运行区块中的交易所需的工作量）。[信标区块](/part3/containers/blocks/#beaconblockbody)大小由硬编码的常数限制。
 
-#### Block trees
+#### 区块树
 
-Our neat diagram of a nice linear chain will for the most part reflect what we see in practice, but not always. Sometimes, due perhaps to network delays, or a dishonest block proposer, or client bugs, any particular node might see something more like the following.
+我们最初绘制的整洁线性链条大多数情况下可以反映实践中的情况，但不总是如此。有时，可能由于网络延迟、不诚实的区块提议者或客户端错误，任何特定节点都可能会看到类似下面的情况。
 
 <a id="img_consensus_block_tree"></a>
 <figure class="diagram" style="width: 90%">
@@ -304,34 +305,34 @@ Our neat diagram of a nice linear chain will for the most part reflect what we s
 
 <figcaption>
 
-In general, we might end up with a block tree rather than a block chain. Again, time moves from left to right and each block points to the parent block it builds on.
+一般来说，我们可能最终得到一棵区块树而不是区块链。时间同样是从左向右流动，每个区块都指向它的父母块。
 
 </figcaption>
 </figure>
 
-In real networks we can end up with something more like a block tree than a block chain. In this example very few blocks are built on their "obvious" parent.
+在实际的网络中，我们可能会得到更像区块树而不是区块链的东西。在这个例子中，很少有区块建立在“明显”的父母区块上。
 
-Why did the proposer of block $C$ build on $A$ rather than $B$?
+为什么区块 $C$ 的提议者接在 $A$ 区块后，而非 $B$ 的后面?
 
-  - It may be that the proposer of $C$ had not received block $B$ by the time it was ready to make its proposal.
-  - It may be that the proposer of $C$ deliberately wanted to exclude block $B$ from its chain, for example to steal its transactions, or to censor some transaction in $B$.
-  - It may be that the proposer of $C$ thought that block $B$ was invalid for some reason.
+  - 可能是 $C$ 的提议者在准备好做出提议时还没有接收到区块 $B$。
+  - 可能是 $C$ 的提议者特意要将 $B$ 从自己从自己的链中排除出去，例如为了窃取 $B$ 中的交易，或审查 $B$ 中的某些交易。
+  - 可能是由于某些原因，$C$ 的提议者认为 $B$ 区块无效。
 
-The first two reasons, at least, are indistinguishable to the wider network. All we know is that $C$ built on $A$, and we can never know why for certain.
+对于更广泛的网络来说，至少前两个原因是无法区分的。我们只知道 C 建立在 A 之上，但永远无法确定为什么。
 
-Similarly, why did the proposer of block $D$ build on $B$ rather than $C$? Any of the above reasons apply, and we can add another:
+同样，为什么区块 D 的提议者构建在区块 B 之上，而不是 C？上述的原因仍然适用，而且我们还可以添加另一个：
 
-  - The proposer of $D$ may have decided on some basis that there was more chance of the wider network eventually including $B$ than $C$. Thus, building $D$ on $B$ gives it more chance of making it into the eventual block chain than building $D$ on $C$.
+  - D 的提议者可能基于某些理由，认为更广泛的网络最终纳入 B 的可能性大于纳入 C。因此，在 B 之上构建 D 比在 C 之上构建 D 更有机会进入最终的区块链。
 
-The various branches in the block tree are called "forks". Forks happen naturally as a consequence of network and processing delays. But they can also occur due to client faults, malicious client behaviour, or protocol upgrades that change the rules, making old blocks invalid with respect to the new rules. The last of these is sometimes called a "hard fork".
+区块树中的各种分支被称为“分叉”。在网络和处理延迟的情况下会自然产生分叉。但也可能是由于客户端故障、客户端恶意行为或协议升级改变了规则，使得旧的区块在新规则下失效。后者通常被称为“硬分叉”。
 
-The existence of forking in a consensus protocol is a consequence of prioritising liveness over safety, in the terms discussed [below](#safety-and-liveness): if you were to consult nodes that are following different forks they would give you different answers regarding the state of the system. Non-forking consensus protocols exist, such as [PBFT](https://www.scs.stanford.edu/nyu/03sp/sched/bfs.pdf) in the classical consensus world and [Tendermint](https://blog.cosmos.network/the-4-classes-of-faults-on-mainnet-bfabfbd2726c#a2f1) in the blockchain world. These protocols always produce a single linear chain and are thus formally "safe". However, they sacrifice liveness on asynchronous networks such as the Internet: rather than forking, they just stop entirely.
+共识协议中分叉的存在是将活性置于安全性之上的结果，这一点在[下文](#safety-and-liveness)中会讨论：如果你去问那些遵循不同分叉的节点，它们会就系统状态给出不同的答案。存在不产生分叉的共识协议，例如古典共识世界中的 [PBFT](https://www.scs.stanford.edu/nyu/03sp/sched/bfs.pdf) 和区块链世界的 [Tendermint](https://blog.cosmos.network/the-4-classes-of-faults-on-mainnet-bfabfbd2726c#a2f1)。这些协议总是产生单一的线性链，因此在形式上是“安全的”。不过，在互联网等异步网络上，它们牺牲了活性：与其分叉，它们彻底停止运转。
 
-#### Fork choice rules
+#### 分叉选择规则
 
-As we've seen, for all sorts of reasons &ndash; network delays, network outages, messages received out of order, malicious behaviour by peers &ndash; nodes across the network end up with different views of the network's state. Eventually, we want every correct node on the network to agree on an identical linear view of history and hence a common view of the state of the system. It is the role of the protocol's _fork choice rule_ to bring about this agreement.
+正如我们所见，由于各种原因——网络延迟、网络中断、消息接收顺序错误、对等节点的恶意行为——网络上的节点最终会对网络状态有不同的视图（view）。最终，我们希望网络上的每个正确节点都能对历史达成一致的线性视图，从而对系统状态形成共同的视图。协议的分叉选择规则（fork choice rule）就是为了达成这种一致。
 
-Given a block tree and some decision criteria based on a node's local view of the network, the fork choice rule is designed to select, from all the available branches, the one that is most likely to eventually end up in the final linear, canonical chain. That is, it will choose the branch least likely to be later pruned out of the block tree as nodes attempt to converge on a canonical view.
+当给定一个区块树，以及一些基于节点对网络的本地视图的决策标准时，分叉选择规则的设计初衷是从所有可用的分支中，选择最有可能成为最终的线性的规范的链的那一个。也就是说，当节点试图向规范视图靠拢时，它将选择最不可能被修剪出区块树的分支。
 
 <a id="img_consensus_block_tree_resolved"></a>
 <figure class="diagram" style="width: 90%">
@@ -340,36 +341,36 @@ Given a block tree and some decision criteria based on a node's local view of th
 
 <figcaption>
 
-The fork choice rule selects a head block from among the candidates. The head block identifies a unique linear block chain running back to the Genesis block.
+分叉选择规则从候选者中选择一个头块。头块标识出一条唯一的、可追溯到创世区块的线性区块链。
 
 </figcaption>
 </figure>
 
-The fork choice rule selects a branch implicitly by choosing a block at the tip of a branch, called the head block.
+分叉选择规则通过选择一个分支顶端的区块（被称为头块）来隐含地选择一个分支。
 
-For any correct node, the first criterion for any fork choice rule is that the block it chooses must be valid according to the protocol's rules, and all its ancestors must be valid. Any invalid block is ignored, and any blocks built on an invalid block are themselves invalid.
+对于任何正确的节点，任何分叉选择规则的第一标准是：它选择的区块必须是有效的，遵守了协议的规则，并且它的所有祖先也必须是有效的。任何无效的区块都会被忽略，而建立在无效区块上的任何区块自身也是无效的。
 
-Given that, there are many examples of different fork choice rules.
+鉴于此，有许多不同的关于分叉选择规则的例子。
 
-  - The proof of work protocols in Ethereum and Bitcoin use a "heaviest chain rule"[^fn-no-ghost] (sometimes called "longest chain", though that's not strictly accurate). The head block is the tip of the chain that represents the most cumulative "work" done under proof of work.
-  - The fork choice rule in Ethereum's proof of stake Casper FFG protocol is "follow the chain containing the justified checkpoint of the greatest height", and to never revert a finalised block.
-  - The fork choice rule in Ethereum's proof of stake LMD GHOST protocol is specified in its name: take the "Greediest Heaviest Observed SubTree". It involves counting accumulated votes from validators for blocks and their descendent blocks.
+  - 以太坊和比特币中的工作量证明协议使用“最重链规则”[^fn-no-ghost]（有时称为“最长链”，尽管这并不完全准确）。头块是在工作量证明下完成最多累积“工作”的链的顶端。
+  - 以太坊的权益证明 Casper FFG 协议中的分叉选择规则是“跟随包含最高的合理检查点的链”，并且永远不会回滚一个已经最终确定的区块。
+  - 以太坊的权益证明 LMD GHOST 协议中的分叉选择规则在其名称中有所体现：采用“最贪婪、最重的被观察子树”。它涉及去计算验证者对区块及其后代区块的累积投票。它也适用与 Casper FFG 相同的规则。
 
-We will properly unpack the second and third of these later in their respective sections.
+我们将在它们各自的章节中详细解释第二和第三个例子。
 
-You can perhaps see that each of these fork choice rules is a way to assign a numeric score to a block. The winning block, the head block, has the highest score. The idea is that all correct nodes, when they eventually see a certain block, will unambiguously agree that it is the head and choose to follow its branch whatever else is going on in their own views of the network. Thus, all correct nodes will eventually agree on a common view of a single canonical chain going back to genesis.
+你可能已经看出来了，这些分叉选择规则都是为一个区块分配分数的方法。获胜的区块——头块——有最高的分数。背后的想法是，当所有正确的节点最终看到某个区块时，将毫不含糊地认同它是头块，并选择跟随其分支，无论自己对网络有什么其它视图。因此，所有正确的节点最终都会就一个被追溯到创世纪的单一规范链的共同视图达成一致。
 
-[^fn-no-ghost]: Contrary to popular belief, Ethereum's proof of work protocol [did not use](https://ethereum.stackexchange.com/a/50693) any form of GHOST in its fork choice. This misconception is very persistent, probably due to the [Ethereum Whitepaper](https://ethereum.org/en/whitepaper/#modified-ghost-implementation). I eventually asked Vitalik about it, and he confirmed to me that although GHOST had been planned under PoW it was never implemented due to concerns about some unspecified attacks. The heaviest chain rule was simpler and well tested. It served us well.
+[^fn-no-ghost]: 与流行的看法相反，以太坊的工作量证明协议[并没有](https://ethereum.stackexchange.com/a/50693)在其分叉选择中使用任何形式的 GHOST。这是个非常顽固的误解，可能是因为[以太坊白皮书](https://ethereum.org/en/whitepaper/#modified-ghost-implementation)的缘故。我最终询问了 Vitalik，他向我确认，尽管曾计划在 PoW 中使用 GHOST，但由于担心一些未被指明的攻击，它从未被实施。最重链规则更简单，也经过良好测试。它干的很棒。
 
-#### Reorgs and reversions
+#### 重组（Reorgs）和回滚（reversions）
 
-As a node receives new blocks (and, under proof of stake, new votes for blocks) it will re-evaluate the fork choice rule in the light of the new information. Most commonly, a new block will be a child of the block that the node currently views as the head block, and the new block will become the head block.
+当一个节点接收到新的区块（和在权益证明中对区块的新投票）时，它将根据新信息重新评估分叉选择规则。最常见的情况是，新区块将是节点当前视为头块的区块的子区块，并将成为头块。
 
-However, sometimes the new block might be a descendent of some other block in the block tree. (Note that, if the node doesn't already have the parent block of the new block, it will need to ask its peers for it, and so on for any blocks it knows that it is missing.)
+然而，有时新区块可能是区块树中某个其他区块的后代。（请注意，如果节点还没有新区块的父区块，它需要询问其对等节点以获得父区块，对于它知道自己所缺失的任何其它区块也是如此。）
 
-In any case, running the fork choice rule on the updated block tree might indicate a head block that is on a different branch from the previous head block. When this happens, the node must perform a reorg (short for reorganisation), also known as a reversion. It will kick out (revert) blocks that it had previously included in its chain, and will adopt the blocks on the new head's branch.
+无论在何种情况下，在更新的区块树上运行分叉选择规则可能会指向一个与先前头块不同分支上的头块。当这种情况发生时，节点必须执行重组（reorg，是 reorganisation 的简写），这也被称为回滚。它将踢出（回滚）之前已经包含在其链中的区块，并将采用新的头块分支上的区块。
 
-In the following diagram, the node has evaluated block $F$ to be the head block, hence its chain comprises blocks $A$, $B$, $D$, $E$, and $F$. The node knows about block $C$, but it does not appear in its view of the chain; it is on a side branch.
+在以下图表中，节点评估区块 F 为头块，因此其链由区块 A, B, D, E, F 组成。节点知道区块 C，但它不在节点的链的视图中；区块 C 在一个侧分支上。
 
 <a id="img_consensus_reversion_0"></a>
 <figure class="diagram" style="width: 70%">
@@ -378,16 +379,16 @@ In the following diagram, the node has evaluated block $F$ to be the head block,
 
 <figcaption>
 
-At this point, the node believes that block $F$ is the best head, and therefore its chain is blocks $[A \leftarrow B \leftarrow D \leftarrow E \leftarrow F]$.
+此时，节点认为区块 $F$ 最可能是头块，因此其链是区块 $[A \leftarrow B \leftarrow D \leftarrow E \leftarrow F]$.
 
 </figcaption>
 </figure>
 
-Some time later the node receives block $G$ which is not built on its current head block $F$, but on block $C$ on a different branch. Depending on the details of the fork choice rule, the node might still evaluate $F$ to be a better head than $G$ and therefore ignore $G$. But in this case we will assume that the fork choice rule indicates that $G$ is the better head block.
+一段时间后，节点接收到区块 G，它不是建立在节点当前的头块 F 上 ，而是建立在区块 C 的分支上。根据分叉选择规则的细节，节点可能仍然评估 F 为比 G 更好的头块，因此忽略 G。但在当前情形中，我们将假设分叉选择规则表明 G 是更好的头块。
 
-Blocks $D$, $E$, and $F$ are not ancestors of $G$, so they need to be removed from the node's canonical chain. Any transactions or information those blocks contain will be reverted, as if they were never received. The node must perform a full rewind to the state that it was in after processing block $B$.
+区块 D, E, 和 F 不是区块 G 的祖先，所以它们需要从节点的规范链中移除。这些区块包含的任何交易或信息都将被回滚，就好像它们从未被接收过一样。节点必须完全倒回处理区块 B 之后的状态。
 
-After rewinding to $B$, the node can add blocks $C$ and $G$ to its chain and process them accordingly. Once done, the node will have completed the reorganisation of its chain.
+倒回区块 B 后，节点可以将区块 C 和 G 和添加到其链中并相应地处理它们。一旦结束，节点就完成了其链的重组。
 
 <a id="img_consensus_reversion_1"></a>
 <figure class="diagram" style="width: 70%">
@@ -396,44 +397,44 @@ After rewinding to $B$, the node can add blocks $C$ and $G$ to its chain and pro
 
 <figcaption>
 
-Now the node believes that block $G$ is the best head, and therefore its chain must change to the blocks $[A \leftarrow B \leftarrow C \leftarrow G]$.
+现在节点认为区块 $G$ 是头块的最佳选择，因此其链必须更改为区块 $[A \leftarrow B \leftarrow C \leftarrow G]$.
 
 </figcaption>
 </figure>
 
-Later, perhaps, a block $H$ might appear that builds on $F$. If the fork choice rule indicates that $H$ ought to be the new head, then the node will perform a reorg once again, reverting blocks back to $B$ and replaying the blocks on $H$'s branch.
+稍后，可能会出现一个建立在区块 F 之上的区块 H。如果分叉选择规则表明新的头块应当是 H，那么节点将再次执行重组，回滚区块到 B，并重新建立分支 H 上的区块。
 
-Short reorgs of one or two blocks in both proof of work and Ethereum's proof of stake protocol are not uncommon due to network delays in block propagation. Much longer reorgs ought to be exceedingly rare, unless the chain is under attack, or there is a bug in the formulation of &ndash; or the clients' implementations of &ndash; the fork choice rule.
+在工作量证明和以太坊的权益证明协议中，由于区块传播的网络延迟，短暂的一两个区块的重组并不罕见。除非链遭到攻击、分叉选择规则的制定或分叉选择规则客户端的实现存在漏洞，否则非常长的重组应该极为罕见。
 
-#### Safety and Liveness
+#### 安全性与活性
 
-Two important concepts that crop up frequently when discussing consensus mechanisms are _safety_ and _liveness_.
+在讨论共识机制时，经常蹦出来两个重要概念：安全性（safety）和活性（liveness）。
 
-##### Safety
+##### 安全性
 
-Informally, an algorithm is said to be safe if "nothing bad ever happens".[^fn-safety-liveness]
+非正式地说，如果“没有坏事发生”[^fn-safety-liveness]，某算法就被认为安全。
 
-[^fn-safety-liveness]: The helpful, intuitive definitions of safety and liveness I've quoted appear in short form in Lamport's 1977 paper, [Proving the Correctness of Multiprocess Programs](https://lamport.azurewebsites.net/pubs/proving.pdf), and as stated here in Gilbert and Lynch's 2012 paper, [Perspectives on the CAP Theorem](https://groups.csail.mit.edu/tds/papers/Gilbert/Brewer2.pdf).
+[^fn-safety-liveness]: 那个我所引用的关于安全性和活性的有用且直观的定义，最早以简短的形式出现在 Lamport 1977年的论文《多进程程序正确性的证明》（[Proving the Correctness of Multiprocess Programs](https://lamport.azurewebsites.net/pubs/proving.pdf)）中，Gilbert 和 Lynch 在 2012 年的论文《关于 CAP 定理的观点》（[Perspectives on the CAP Theorem](https://groups.csail.mit.edu/tds/papers/Gilbert/Brewer2.pdf)）中也这样定义它们。
 
-Examples of bad things that might happen in the blockchain context could be the double-spend of a coin, or the finalising of two conflicting checkpoints.
+在区块链环境中可能发生的坏事情的例子包括加密货币的双花（double-spend），或者两个彼此冲突的检查点的最终确定。
 
-An important facet of safety in a distributed system is "consistency". That is, if we were to ask different (honest) nodes about the state of the chain at some point in its progress, such as the balance of an account at a particular block height, then we should always get the same answer, no matter which node we ask. In a safe system, every node has an identical view of the history of the chain that never changes.
+分布式系统中安全性的一个重要方面是“一致性”。也就是说，如果我们询问不同的（诚实的）节点在链的某个进展点上的状态，例如在特定区块高度时某个账户的余额，那么无论我们询问哪个节点，我们应该总是得到相同的答案。在一个安全的系统中，每个节点对链的历史都有着永不改变的相同视图。
 
-Effectively, safety means that our distributed system "behaves like a centralized implementation that executes operations atomically one at a time." (to quote [Castro and Liskov](https://www.scs.stanford.edu/nyu/03sp/sched/bfs.pdf)). A safe system is, in Vitalik's [taxonomy](https://medium.com/@VitalikButerin/the-meaning-of-decentralization-a0c92b76a274) of centralisation, logically centralised.
+实际上，安全性意味着我们的分布式系统“表现得像一个中心化实例，一次只执行一个原子化的操作。”（[引用 Castro 和 Liskov](https://www.scs.stanford.edu/nyu/03sp/sched/bfs.pdf)）。在 Vitalik 的[去中心化分类中](https://medium.com/@VitalikButerin/the-meaning-of-decentralization-a0c92b76a274)，一个安全的系统是在逻辑上是中心化的。
 
-##### Liveness
+##### 活性
 
-Again informally, an algorithm is said to be live if "something good eventually happens".
+再次非正式地说，如果“最终会发生一些好事”，那么某种算法就被认为具有活性。
 
-In a blockchain context we generally understand this to mean that the chain can always add a new block; it will never get into a deadlock situation in which it will not produce a new block with transactions in it.
+在区块链环境中，我们通常认为这意味着链总是可以添加一个新区块；它永远不会陷入无法产生包含交易的新区块的僵局。
 
-"Availability" is another way of looking at this. I want the chain to be available, meaning that if I send a valid transaction to an honest node it will eventually be included in a block that extends the chain.
+“可用性（Availability）”是看待这个问题的另一种方式。我希望链是可用的，这意味着如果我向一个诚实的节点发送一个有效的交易，它最终会被包含在一个扩展了这条链的区块中。
 
-##### You can't have both!
+##### 二者不可兼得！
 
-The CAP theorem is a famous result in distributed systems' theory that states that no distributed system can provide all three of (1) consistency, (2) availability, and (3) partition tolerance. Partition tolerance is the ability to function when communication between nodes is not reliable. For example, a network fault might split the nodes into two or more groups that can't communicate with each other.
+CAP 定理是分布式系统理论中的一个著名结果，它指出没有分布式系统可以同时提供（1）一致性（consistency），（2）可用性，和（3）分区容错性（partition tolerance）。分区容错性是指节点之间的通信不可靠时仍能正常运行的能力。例如，网络故障可能将节点分成两个或多个无法相互通信的群组。
 
-It is easy to demonstrate the CAP theorem in our blockchain context. Imagine that Amazon Web Services goes offline, such that all the AWS hosted nodes can communicate with each other, but none can talk to the outside world. Or that a country firewalls all connections in and out so that no gossip traffic can pass. Either of these scenarios divide the nodes into two disjoint groups, $A$ and $B$.
+在区块链的语境中很容易证明 CAP 定理。假如亚马逊网络服务（AWS）下线，使得所有由 AWS 托管的节点可以相互通信，但没有一个节点可以与外界通信；或者一个国家阻止所有进出的连接，使得没有任何流言（gossip）流量可以通过。这两种情况都将节点分成两个不相干的组，如 A 与 B。
 
 <a id="img_consensus_partition"></a>
 <figure class="diagram" style="width: 50%">
@@ -442,44 +443,44 @@ It is easy to demonstrate the CAP theorem in our blockchain context. Imagine tha
 
 <figcaption>
 
-The network is partitioned: the nodes in $A$ can talk among themselves, but cannot talk to any node in $B$, and vice versa.
+网络被分区：$A$ 中的节点可以彼此沟通，但它们不能与 $B$ 中的任何节点对话，反之亦然。
 
 </figcaption>
 </figure>
 
-Let's say that somebody connected to the network of group $A$ sends a transaction. If the nodes in $A$ process that transaction then they will end up with a state that is different from the nodes in group $B$, which didn't see the transaction. So, overall, we have lost consistency between all the nodes, and therefore safety. The only way to avoid this is for the nodes in group $A$ to refuse to process the transaction, in which case we have lost availability, and therefore liveness.
+假设连接到 A 组网络的某账户发送了一个交易。如果 A 组中的节点处理了该交易，那么他们最终的状态就与 B 组中的没有看到该交易的节点们不同。因此，总的来说，我们失去了所有节点之间的一致性，因此失去了安全性。避免这种情况的唯一方法是 A 组中的节点拒绝处理交易，在这种情况下我们失去了可用性，以及活性。
 
-In summary, the CAP theorem means that we cannot hope to design a consensus protocol that is both safe and live under all circumstances, since we have no option but to operate across an unreliable network, the Internet.[^fn-flp-theorem]
+总之，CAP 定理意味着，我们无法指望设计出一个在任何情况下都既安全又具有活性的共识协议，因为我们别无选择，只能在一个不可靠的网络上运行，即互联网。[^fn-flp-theorem]
 
-[^fn-flp-theorem]: The CAP theorem is related to another famous result described by Fisher, Lynch and Paterson in their 1985 paper, [Impossibility of Distributed Consensus with One Faulty Process](https://groups.csail.mit.edu/tds/papers/Lynch/jacm85.pdf), usually called the FLP theorem. This proves that, even in a reliable asynchronous network (that is, with no bound on how long messages can take to be received), just one faulty node can prevent the system from coming to consensus. That is, even this unpartitioned system cannot formally be both live and safe. Gilbert and Lynch's [paper](https://groups.csail.mit.edu/tds/papers/Gilbert/Brewer2.pdf) discusses the FLP theorem in section 3.2.
+[^fn-flp-theorem]: CAP 定理与 Fisher, Lynch 和 Paterson 在 1985 年的论文《故障进程中分布式共识的不可能性》（[Impossibility of Distributed Consensus with One Faulty Process](https://groups.csail.mit.edu/tds/papers/Lynch/jacm85.pdf)）中描述的另一个著名结果有关，通常称为 FLP 定理。这证明了，即使在一个可靠的异步网络中（即，消息传递所需时间没有限制），只要有一个故障节点，就可以阻止系统达成共识。也就是说，即使这个未分区的系统也不能同时具备活性和安全性。Gilbert 和 Lynch 在[一篇论文](https://groups.csail.mit.edu/tds/papers/Gilbert/Brewer2.pdf)的第 3.2 节讨论了 FLP 定理。
 
-##### Ethereum prioritises liveness
+##### 以太坊优先考虑活性
 
-The Ethereum consensus protocol offers both safety and liveness in good network conditions, but prioritises liveness when things are not running so smoothly. In the case of a network partition the nodes on each side of the partition will continue to produce blocks. However, finality (a safety property) will no longer occur on both sides of the partition. Depending on the proportion of stake managed by each side, either one side or neither side will continue to finalise.
+在网络状况良好的情况下，以太坊共识协议可同时提供安全性和活性，但在网络运行不太顺畅时，则优先考虑活性。在网络分区的情况下，分区两侧的节点将继续产生区块。不过，最终确定性（finality，安全性的一种属性）将不再在分区两侧一起发生。根据两侧管理的质押比例，要么一侧继续获得最终确定性，要么两侧都不会继续获得最终确定性。
 
-Eventually, unless the partition is resolved, both sides will regain finality due to the novel [inactivity leak](/part2/incentives/inactivity/) mechanism. But this results in the ultimate safety failure. Each chain will finalise a different history and the two chains will become irreconcilable and independent forever.
+最终，除非分区得到解决，否则双方都会因新颖的怠惰惩罚（[inactivity leak](/part2/incentives/inactivity/)）机制而重新获得最终确定性。但这也最终会导致安全故障。每条链将最终确定不同的历史，两条链将永远变得不可调和与独立。
 
-#### Finality
+#### 最终确定性（Finality）
 
-We're going to be discussing finality a good deal over the following sections, which is a safety property of the chain.
+我们将在接下来的章节中大量讨论最终确定性，这是链的安全性的属性。
 
-Finality is the idea that there are blocks that will never be reverted. When a block has been finalised, all the honest nodes on the network have agreed that the block will forever remain part of the chain's history, and therefore that all of its ancestors will remain in the chain's history. Finality makes your payment for pizza as irrevocable as if you'd handed over cash. It is the ultimate protection against double-spending.[^fn-finality-not-absolute]
+最终确定性是指有些区块永远不会被回滚。当一个区块被最终确定时，网络上的所有诚实节点都同意该区块将永远保留在链的历史中，因此它的所有祖先也将保留在链的历史中。最终确定性让你对比萨饼的支付不可撤销，就像用现金一样。这是对双花的终极保护。[^fn-finality-not-absolute]
 
-[^fn-finality-not-absolute]: It's worth noting that finality is never absolute. Whatever any protocol claims, if a supermajority of nodes agrees (for example via a software upgrade) to revert a bunch of finalised blocks, then that's going to happen. Ultimately, as in all things, the concept of finality is subservient to social consensus. See [On Settlement Finality](https://blog.ethereum.org/2016/05/09/on-settlement-finality) for further discussion.
+[^fn-finality-not-absolute]: 值得注意的是，最终确定性从来都不是绝对的。无论任何协议怎样声称，如果绝对多数节点同意（例如通过软件升级）回滚一堆已经最终确定的区块，那么这就会发生。归根结底，就像所有事物一样，最终确定性的概念服从于社会共识。有关进一步讨论，请参见《关于结算的最终确定性》（[On Settlement Finality](https://blog.ethereum.org/2016/05/09/on-settlement-finality)）。
 
-Some consensus protocols, like classical PBFT, or Tendermint, finalise every round (every block). As soon as a round's worth of transactions has been included on the chain, all the nodes agree that it will be there forever. On the one hand, these protocols are very "safe": once a transaction has been included on-chain, it will never be reverted. On the other hand, they are vulnerable to liveness failures: if the nodes cannot come to agreement &ndash; for example, if more than one third of them are down or unavailable &ndash; then no transactions can be added to the chain and it will stop dead.
+一些共识协议，如经典的 PBFT 或 Tendermint，每轮（每个区块）都会最终确定。一旦一轮交易被包含在链上，所有节点都同意它将永远存在。一方面，这些协议非常“安全”：一旦交易被包含在链上，它将永远不会被回滚。另一方面，它们容易发生活性故障：如果节点无法达成一致——例如，如果超过三分之一的节点关闭或不可用——那么就没有交易可以被添加到链上，链将停止运行。
 
-Other consensus protocols, such as Bitcoin's Nakamoto consensus, do not have any finality mechanism at all. There is always the possibility that someone will reveal an alternative, heavier chain. When this happens, all honest nodes must reorg their chains accordingly, reverting whatever transactions they previously processed. Heuristics such as how many confirmations your block has are only approximations to finality, they are not guarantees.[^fn-cdc-40k]
+其他共识协议，如比特币的中本聪共识，根本没有任何最终确定性机制。总是存在有人呈现出一个更重的替代链的可能性。当这种情况发生时，所有诚实的节点必须相应地重组他们的链，回滚他们之前处理的任何交易。诸如你的区块有多少确认之类的启发式方法只是对最终确定性的近似值，而无法保证。[^fn-cdc-40k]
 
-[^fn-cdc-40k]: At the time of writing, at least one exchange requires [40000 confirmations](https://www.reddit.com/r/Crypto_com/comments/w9qmbx/40000_confirmations_and_7_days_to_send_etc_to_cdc/) for deposits from the Ethereum Classic network. That means that forty thousand blocks must be built on top of a block containing the deposit transaction before the exchange will process it, which takes about six days. The requirement reflects concern about the vulnerability of ETC's low hash rate proof of work chain to 51% attacks - it is relatively easy for an attacker to revert blocks at will. The reality is that, in the face of a well-crafted 51% attack, no number of confirmations is truly safe.
+[^fn-cdc-40k]: 在撰写本文时，至少有一个交易所要求从以太坊经典网络的存款中获得 [40000 个确认](https://www.reddit.com/r/Crypto_com/comments/w9qmbx/40000_confirmations_and_7_days_to_send_etc_to_cdc/)。这意味着在包含存款交易的区块之上必须建立四万个区块，交易所才会处理它，这大约需要六天时间。这一要求反映了对 ETC低哈希率工作量证明链易受 51% 攻击的脆弱性的担忧——对于攻击者来说，随意回滚区块相对容易。事实上，面对一个精心设计的 51% 攻击，无论多少确认次数都无法达到真正安全。
 
-Ethereum's consensus layer prioritises liveness, but also strives to offer a safety guarantee in the form of finality when circumstances are favourable. This is an attempt to gain the best of both worlds. Vitalik has [defended this](https://ethresear.ch/t/explaining-the-liveness-guarantee/4228/8?u=benjaminion) as follows.[^fn-liveness-during-nonfinality]
+以太坊的共识层优先考虑活性，但也努力在有利的情况下以最终确定性的方式提供安全保证。这是试图两全其美的尝试。Vitalik 这样[辩护](https://ethresear.ch/t/explaining-the-liveness-guarantee/4228/8?u=benjaminion)：[^fn-liveness-during-nonfinality]
 
-> The general principle is that you want to give users "as much consensus as possible": if there’s $>2/3$ then we get regular consensus, but if there's $<2/3$ then there’s no excuse to just stall and offer nothing, when clearly it’s still possible for the chain to keep growing albeit at a temporarily lower level of security for the new blocks. If an individual application is unhappy with that lower level of security, it’s free to ignore those blocks until they get finalized.
+> 一般原则是你想给予用户“尽可能多的共识”：如果达成共识的节点 $>2/3$ 那么我们就会得到常规的共识。但如果 $<2/3$，那也不需要停下来什么也不做，显然，尽管新区块的安全性暂时降低，链仍然可能继续增长。如果个别应用不满意较低的安全级别，它可以自由地忽略那些区块，直到它们被最终确定。
 
-[^fn-liveness-during-nonfinality]: The value of this was evident when the beacon chain [stopped finalising](https://offchain.medium.com/post-mortem-report-ethereum-mainnet-finality-05-11-2023-95e271dfd8b2) for around an hour on the 12th of May, 2023. Participation in consensus dropped from over 99% of validators to around 40% for the duration. Ordinary Ethereum users and applications, however, would have barely noticed. Blocks continued to be produced (albeit fewer than normal) and transactions continued to be executed.
+[^fn-liveness-during-nonfinality]: 这一点的价值在 2023 年 5 月 12 日信标链在大约一个小时中停止最终确定（[stopped finalising](https://offchain.medium.com/post-mortem-report-ethereum-mainnet-finality-05-11-2023-95e271dfd8b2)）时显现。在此期间，参与共识的验证者从超过99% 下降到大约 40%。然而，普通的以太坊用户和应用程序几乎没有察觉。区块继续被生产（尽管少于正常情况），交易继续被执行。
 
-Finality in Ethereum's consensus layer is delivered by the Casper FFG mechanism that we'll be exploring soon. The idea is that, periodically, all honest validators agree on fairly recent checkpoint blocks that they will never revert. That block and all its ancestor blocks are then "final" - they will never change, and if you consult any honest node in the network about them or their ancestors you will always get the same answer.
+在以太坊的共识层中，最终确定性是由 Casper FFG 机制提供的，我们很快就会探讨这一机制。其原理是，所有诚实的验证者定期就最近的检查点区块达成一致，他们永远不会撤销这些区块。然后，该区块及其所有祖先区块就是“最终确定的”区块——它们永远不会改变，如果你向网络中的任何诚实节点询问它们或其祖先区块的情况，你总会得到相同的答案。
 
 <a id="img_consensus_finality"></a>
 <figure class="diagram" style="width: 80%">
@@ -488,124 +489,124 @@ Finality in Ethereum's consensus layer is delivered by the Casper FFG mechanism 
 
 <figcaption>
 
-The honest nodes have agreed that the checkpoint and all its ancestor blocks are "final" and will never be reverted. There are therefore no forks before the checkpoint. The chain descending from the checkpoint remains liable to forking.
+诚实的节点已经同意检查点及其所有祖先区块是“最终确定的”且永远不会被回滚。因此，在检查点之前没有分叉。检查点之后的链仍然可能发生分叉。
 
 </figcaption>
 </figure>
 
-Ethereum's finality is "economic finality". It is theoretically possible for the protocol to finalise two conflicting checkpoints, that is, two contradictory views of the chain's history. However, it is possible only at enormous and quantifiable cost. For all but the most extreme attack or failure scenarios, final means final.
+以太坊的最终确定性是“经济最终确定性”。理论上，协议可能会最终确定两个相冲突的检查点，即对链的历史的两个矛盾视图。然而，这只有在巨大且可量化的成本下才可能出现。除了最极端的攻击或失败情景外，最终确定就是最终确定。
 
-The [section on Casper FFG](/part2/consensus/casper_ffg/) dives into the detail of how this finality mechanism works.
+[Casper FFG 部分](/part2/consensus/casper_ffg/)深入探讨了这种最终确定性机制的工作原理。
 
-#### See also
+#### 另见
 
-It's always worth reading anything that Leslie Lamport has had a hand in, and the original 1982 paper by Lamport, Shostak, and Pease on [The Byzantine Generals Problem](https://lamport.azurewebsites.net/pubs/byz.pdf) contains many insights. While the algorithm they propose is hopelessly inefficient in modern terms, the paper is a good introduction to reasoning about consensus protocols in general. The same is true of Castro and Liskov's seminal 1999 paper [Practical Byzantine Fault Tolerance](https://www.scs.stanford.edu/nyu/03sp/sched/bfs.pdf) which significantly influenced the design of Ethereum's Casper FFG protocol. However, you might like to contrast these "classical" approaches with the elegant simplicity of proof of work, as described by Satoshi Nakamoto in the 2008 [Bitcoin white paper](https://bitcoinpaper.org/bitcoin.pdf). If proof of work has just one thing in its favour, it is its simplicity.
+Leslie Lamport 参与的任何内容总是值得一读，他与 Shostak 和 Pease 合著的 1982 年原始论文《拜占庭将军问题》（[The Byzantine Generals Problem](https://lamport.azurewebsites.net/pubs/byz.pdf)）包含了许多洞见。虽然他们提出的算法在当今条件下已经效率极低，但该论文对推理一般共识协议是很好的引入。Castro 和 Liskov 在1999 年发表的开创性论文《实用拜占庭容错》（[Practical Byzantine Fault Tolerance](https://www.scs.stanford.edu/nyu/03sp/sched/bfs.pdf)）也是如此，它对以太坊的 Casper FFG 协议的设计产生了重大影响。但是，你可能会想将这些“经典”方法与中本聪在 2008 年[比特币白皮书](https://bitcoinpaper.org/bitcoin.pdf)中描述的工作证明优雅的简洁性相对比。如果说工作量证明有什么优点的话，那就是它的简洁。
 
-We've referred above to Gilbert and Lynch's 2012 paper, [Perspectives on the CAP Theorem](https://groups.csail.mit.edu/tds/papers/Gilbert/Brewer2.pdf). It is a very readable exploration of the concepts of consistency and availability (or safety and liveness in our context).
+上文中我们提到了 Gilbert 和 Lynch 在 2012 年的论文《CAP 定理的视角》（[Perspectives on the CAP Theorem](https://groups.csail.mit.edu/tds/papers/Gilbert/Brewer2.pdf)）。这篇论文对一致性和可用性（或我们语境中的安全性和有效性）概念进行了深入探讨，有很强的可读性。
 
-The Ethereum beacon chain underwent a seven block reorg in May 2022 due to differences between client implementations of the fork choice rule. These differences were known at the time and thought to be harmless. That proved to be not so. Barnabé Monnot's [write-up](https://barnabe.substack.com/p/pos-ethereum-reorg) of the incident is very instructive.
+由于分叉选择规则的客户端实现之间存在差异，以太坊信标链在 2022 年 5 月经历了七个区块的重组。这些差异在当时是众所周知的，并且被认为是无害的。事实证明并非如此。巴纳贝-蒙诺（Barnabé Monnot）对这一事件的[描述](https://barnabe.substack.com/p/pos-ethereum-reorg)非常有启发性。
 
-Vitalik's blog post [On Settlement Finality](https://blog.ethereum.org/2016/05/09/on-settlement-finality/) provides a deeper and more nuanced exploration of the concept of finality.
+Vitalik 的博客文章《关于结算的最终确定性》（[On Settlement Finality](https://blog.ethereum.org/2016/05/09/on-settlement-finality/)）提供了对最终确定性概念更深入、更细致的探索。
 
-Our ideal for the systems we are building is that they are _politically_ decentralised (for permissionlessness and censorship resistance), _architecturally_ decentralised (for resilience, with no single point of failure), but _logically_ centralised (so that they give consistent results). These criteria strongly influence how we design our consensus protocols. Vitalik explores these issues in his article, [The Meaning of Decentralization](https://medium.com/@VitalikButerin/the-meaning-of-decentralization-a0c92b76a274).
+对于我们正在构建的系统，我们的理想是它们是政治去中心化的（以实现无许可和抗审查），架构去中心化的（以实现无单点故障的抗逆力），但在逻辑上是中心化的（以实现一致的结果）。这些标准对我们如何设计共识协议有很大影响。Vitalik 在《去中心化的意义》（[The Meaning of Decentralization](https://medium.com/@VitalikButerin/the-meaning-of-decentralization-a0c92b76a274)）一文中探讨了这些问题。
 
-### Overview <!-- /part2/consensus/overview/ -->
+### 概述 <!-- /part2/consensus/overview/ -->
 
 <div class="summary">
 
-  - Nodes and validators are the actors of the consensus system.
-  - Slots and epochs regulate consensus time.
-  - Blocks and attestations are the currency of consensus.
-  - Ethereum's consensus protocol combines two separate consensus protocols.
-  - "LMD GHOST" essentially provides liveness.
-  - "Casper FFG" provides finality.
-  - Together they are sometimes known as "Gasper".
+  - 节点和验证者是共识系统中的行动者。
+  - 时隙和时段调节共识时间。
+  - 区块和认证是共识的货币。
+  - 以太坊的共识协议结合了两个独立的共识协议。
+  - “LMD GHOST”本质上提供活性。
+  - “Casper FFG”提供最终确定性。
+  - 它们有时被合称为“Gasper”。
 
 </div>
 
-#### Introduction
+#### 引言
 
-The last section gave a broad view of blockchain consensus; in this section we will tighten the focus to Ethereum's proof of stake consensus. I've tried to follow a path that gives enough information to make sense of things, without wandering off into the detailed technical weeds on either side. All those weeds are well explored in the [annotated specification](/part3/) and other chapters, and I've included some links for those who want to branch off and go exploring.
+上一节描述了区块链共识的大致情况；在本节中，我们将聚焦于以太坊的权益证明共识。我试图遵循一条通过提供足够的信息以理解事物的路径，而不深入两侧的技术细节的杂草。所有这些细节都将在[规范注解](/part3/)和其他章节中被深入探讨。我也加了一些链接，以供那些想要去分支探索的人使用。
 
-The first thing we must cover is the Ethereum-specific terminology that we will be using throughout.
+首先必须介绍的是我们将在整个过程中使用的、以太坊特有的术语。
 
-##### Nodes and Validators
+##### 节点和验证者
 
-The main participants in the Ethereum network are _nodes_. A node's role is to validate consensus and form the communication backbone with other nodes.
+以太坊网络的主要参与者是节点（nodes）。节点的角色是验证共识并与其他节点形成通信的主干。
 
-Consensus is formed by _validators_, which (in true Ethereum style) are horribly misnamed, as they don't really validate anything - that's done by the nodes. Each validator represents an initial 32 ETH stake. It has its own [secret key](/part2/building_blocks/signatures/#key-pairs), and the related public key that is its identity in the protocol. Validators are attached to nodes, and a single node can host anything from zero to hundreds or thousands of validators. Validators attached to the same node do not act independently, they share the same view of the world.[^fn-validators-nodes]
+验证者（validators）形成共识，而“验证者”（符合以太坊的一致作风）是一种可怕的误称，因为它们实际上并不验证任何东西——验证是由节点完成的。每个验证者代表最初质押的 32 个以太币。它有自己的秘钥（[secret key](/part2/building_blocks/signatures/#key-pairs)），以及作为其在协议中身份的相关公钥。验证者附在节点上，一个节点可以托管从零到数百数千个验证者。附到同一个节点的验证者们不会独立行动，它们共享着对世界的同一视图。[^fn-validators-nodes]
 
-[^fn-validators-nodes]: It would serve us well to be mindful of this when making claims about the decentralisation of Ethereum. Having, say, 600,000 validators active on the network is a long way from having 600,000 independent actors. Looking at the number of nodes, and the distribution of validators across nodes, will give more useful metrics for Ethereum's decentralisation.
+[^fn-validators-nodes]: 当我们谈论到以太坊的去中心化时，牢记这一点是非常有益的。比如说，网络上有 60 万个活跃的验证者，这与有 60 万个独立行动者相比还相去甚远。观察节点的数量以及验证者在节点间的分布，将为以太坊的去中心化提供更有用的衡量指标。
 
-A interesting feature of proof of stake that sets it apart from proof of work is that, under PoS, we know our validator set. We have a complete list of all the public keys that we expect to be active at any time. Knowing our validator set enables us to achieve finality, as we can identify when we have achieved a majority vote of participants.[^fn-accountable-safety-jargon]
+使权益证明不同于工作量证明的一个有趣特点是，在权益证明中，我们知道我们的验证者集（validator set）。我们有一份完整的列表，上面有我们预计会在任意时刻活跃的所有公钥。知道验证者集使我们能够实现最终确定性，因为我们可以识别出在何时获得了参与者的多数票。[^fn-accountable-safety-jargon]
 
-[^fn-accountable-safety-jargon]: In consensus jargon, we can have "accountable safety".
+[^fn-accountable-safety-jargon]: 在共识术语中，我们可以拥有“可问责的安全性（accountable safety）”。
 
-##### Slots and Epochs
+##### 时隙和时段
 
-Time is strictly regimented in Ethereum's proof of stake consensus, which is a major change from proof of work, which only had casual relationship with time - PoW makes some attempt to keep block intervals constant on average, but that's all.
+在以太坊的权益证明共识中，时间被严格规定，这与工作量证明相比是一个重大变化，工作量证明只与时间有着偶然的关系——它试图保持区块间隔的平均恒定，但仅此而已。
 
-The two most important intervals are the _slot_, which is [12 seconds](/part3/config/configuration/#seconds_per_slot) exactly, and the _epoch_, which is [32 slots](/part3/config/preset/#slots_per_epoch), or 6.4 minutes. Slots and epochs progress regularly and relentlessly, whatever else may be happening on the network.
+最重要的两种时间间隔是时隙（slot，[12 秒](/part3/config/configuration/#seconds_per_slot)）和时段（epoch，[32 个时隙](/part3/config/preset/#slots_per_epoch)或 6.4 分钟）。无论网络上发生了什么，时隙和时段都会有规律地持续进行。
 
-##### Blocks and Attestations
+##### 区块和认证
 
-Every slot, exactly one validator is [selected](/part3/helper/accessors/#get_beacon_proposer_index) to propose a _block_. The block [contains](/part3/containers/blocks/#beaconblockbody) updates to the beacon state, including attestations that the proposer knows about, as well as the [execution payload](/part3/containers/execution/#executionpayload) containing Ethereum user transactions. The proposer shares its block with the whole network via a gossip protocol.
+每个时隙中都会[选择](/part3/helper/accessors/#get_beacon_proposer_index)出一个验证者去提议一个区块。区块[包含](/part3/containers/blocks/#beaconblockbody)对信标状态的更新，这些更新包括提议者所知道的认证，还有以太坊用户交易的执行有效载荷（[execution payload](/part3/containers/execution/#executionpayload)）。通过广播协议（gossip protocol），提议者与整个网络共享其区块。
 
-A slot can be empty: a block proposer might be offline, or propose an invalid block, or have its block subsequently reorged out of the chain. These things should not happen often in a well-running beacon chain, but the protocol is intended to be robust when empty slots occur.
+时隙可以是空的：区块提议者可能离线，或提出一个无效的区块，或其区块随后被重组出链。在一条运行良好的信标链中，这些事情不应该经常发生，但协议有意在空时隙出现时保持稳健。
 
-Every epoch, every validator gets to share its view of the world exactly once, in the form of an _attestation_. An attestation [contains](/part3/containers/dependencies/#attestationdata) votes for the _head_ of the chain that will be used by the LMD GHOST protocol, and votes for _checkpoints_ that will be used by the Casper FFG protocol. Attestations are also gossiped to the whole network. Like blocks, attestations can be missing for all sorts of reasons, and the protocol can tolerate this to various extents - crudely, the quality of consensus will decrease as the participation rate of attesters decreases.[^fn-attestation-rate]
+在每个时段中，每个验证者都会通过认证（attestation）的形式分享一次它对世界的视图。认证[包含](/part3/containers/dependencies/#attestationdata)对链头的投票（LMD GHOST 协议将会使用）和对检查点的投票（Casper FFG 协议将会使用）。认证也会向整个网络广播。与区块一样，认证也可能因各种原因而缺失，而协议可以在不同程度上容忍这种情况——粗略地说，随着认证者参与率的降低，共识的质量也会下降。[^fn-attestation-rate]
 
-[^fn-attestation-rate]: The [Beaconcha.in](https://beaconcha.in) site shows attestation participation rate (also called Voting Participation) on a per epoch basis. It is a good measure of network health. The rate often exceeds 99%, which is an outstanding level of performance for a massively distributed consensus protocol.
+[^fn-attestation-rate]: [Beaconcha.in](https://beaconcha.in) 网站按时段显示认证参与率（也被称为投票参与）。这是衡量网络健康的一个好方法。该比率通常超过 99%，对于一个大规模分布式共识协议来说，这是非常出色的水准。
 
-The function of the epoch is to spread out the workload of handling all those attestations. By attesting, every validator is informing every other validator of its view of the world, which could amount to an immense amount of network traffic and processing load if it were all done at once. Spreading the attestation workload across all 32 slots of an epoch keeps resource usage low. In each slot, committees comprising only $\frac{1}{32}$ of the validators make attestations.
+时隙的功能是将处理所有这些验证的工作量分散化。通过认证，每个验证者都会将自己对世界的视图告知其他验证者，如果一次性完成，可能会导致巨大的网络流量和处理负载。将认证的工作量分散到一个时段中的所有 32 个时段，可以保持低资源使用率。在每个时段，委员会只由占总量 $\frac{1}{32}$ 的进行认证的验证者们组成。
 
-The protocol incentivises block and attestation production and accuracy via a system of rewards and penalties for validators. We don't need to go into these now; there is a whole [separate chapter](/part2/incentives/) on all of that.
+通过对验证者的奖惩系统，协议激励区块和认证的生产和准确性。我们当下不需要深入探讨这些；会有完整[单独的一章](/part2/incentives/)来阐述所有这些问题。
 
-##### Slashing
+##### 罚没
 
-In proof of work, producing a block is expensive. This is a strong incentive for miners to behave well, in line with the protocol's goals, to ensure that their blocks are included.
+在工作量证明中，生产一个区块的成本很高。这极大地激励了矿工，使他们按照协议的目标正确行事，以确保自己的区块被纳入。
 
-In proof of stake, creating blocks and attestations is almost free[^fn-nothing-at-stake]. We need a way to prevent attackers from exploiting this to disrupt the network. This is the role of _slashing_. Validators that equivocate over blocks or attestations are subject to being [slashed](/part2/incentives/slashing/), which means that they are ejected from the validator set and fined some portion of their stake. Simply put, equivocation means saying two contradictory things. It might be proposing two different blocks for the same slot, or making two attestations that are inconsistent with each other, that no validator honestly following the protocol would have made.
+在权益证明中，创建区块和证明几乎是免费的 [^fn-nothing-at-stake]。我们需要一种方法来防止攻击者利用这一点破坏网络。这就是罚没（slashing）的作用。对区块或认证模棱两可的验证者将被[罚没](/part2/incentives/slashing/)，这意味着他们会被移除出验证者集，并被处以部分质押的罚款。简单地说，模棱两可（equivocation）就是说出两件相互矛盾的事情。它可能是为同一个时隙提出两个不同的区块，或者做出两个相互矛盾的认证，而任何诚实遵守协议的验证者都不会如此行事。
 
-[^fn-nothing-at-stake]: This is sometimes called the "nothing at stake problem".
+[^fn-nothing-at-stake]: 这有时被称为“无利害关系问题（nothing at stake problem）”。
 
-#### The Ghosts in the Machine
+#### 机器中的幽灵
 
-With some terminology behind us we can begin to outline Ethereum's actual consensus mechanism.
+了解了一些术语之后，让我们开始概述以太坊实际的共识机制。
 
-Ethereum's proof of stake consensus protocol is actually a combination of two separate consensus protocols, known individually as LMD GHOST[^fn-lmd-name], and Casper FFG[^fn-ffg-name]. These two have been "bolted together" to form the consensus protocol we have implemented for Eth2 - the combined protocol is sometimes known by the portmanteau "Gasper".
+以太坊的权益证明共识协议实际上是两个独立共识协议的结合，它们分别被称为 LMD GHOST[^fn-lmd-name] 和 Casper FFG[^fn-ffg-name]。这两个协议已经被“拧和在一起”，形成了我们为 Eth2 实现的共识协议——这个组合协议有时被称为 “Gasper”。
 
-[^fn-lmd-name]: "Latest Message Driven, Greedy Heaviest Observed Subtree". I will unpack the naming in the specific [LMD GHOST chapter](/part2/consensus/lmd_ghost/#naming).
+[^fn-lmd-name]: “最新消息驱动的，贪婪、最重的被观察子树”。我将在具体的 [LMD GHOST 章节](/part2/consensus/lmd_ghost/#naming)中解释这个命名。
 
-[^fn-ffg-name]: "Casper the Friendly Finality Gadget". Again, I will unpack this slightly curious naming when we get to the specific [Casper FFG chapter](/part2/consensus/casper_ffg/#naming).
+[^fn-ffg-name]: “友好的最终确定性小工具 Casper”。同样，我将在进入特定的 [Casper FFG 章节](/part2/consensus/casper_ffg/#naming)时解释这个略显奇怪的命名。
 
-Combining the two in Gasper is an attempt to get the best of both worlds in terms of liveness and safety. In essence, LMD GHOST provides slot-by-slot liveness (it keeps the chain running), while Casper FFG provides safety (it protects the chain from long reversions). LMD GHOST allows us to keep churning out blocks on top of one-another, but is forkful and therefore not formally safe. Casper FFG modifies the LMD GHOST fork choice rule to periodically bless the chain with finality. Nevertheless, as [previously discussed](/part2/consensus/preliminaries/#ethereum-prioritises-liveness), Ethereum prioritises liveness. Therefore, in situations in which Casper FFG is unable to confer finality, the chain still continues to grow via the LMD GHOST mechanism.
+在 Gasper 中将这两者结合是为了在活性和安全性两个方面都获得最佳效果。本质上，LMD GHOST 为每个时隙依次提供活性（它让链保持运行），而 Casper FFG 提供安全性（它保护链免受大规模回滚）。LMD GHOST 使我们继续在彼此之上产出区块，但是这种产出是可分叉的，因此从理论上说并不安全。Casper FFG 修改 LMD GHOST 的分叉选择规则，定期赋予链最终确定性。尽管如此，[如前所述](/part2/consensus/preliminaries/#ethereum-prioritises-liveness)，以太坊优先考虑活性。因此，在 Casper FFG 无法赋予最终确定性的情况下，链仍然会通过 LMD GHOST 机制继续增长。
 
-This bolted-together consensus mechanism is not always pretty. We can sometimes see the joins, and the interaction between the two has led to subtle issues that we will discuss [later](/part2/consensus/issues/). However, in the spirit of Ethereum, it is a workable engineering solution that serves us well in practice.
+这种拧和在一起的共识机制并不总是那么好。有时我们会看到接合处，两种共识机制之间的互动导致了一些我们[稍后](/part2/consensus/issues/)将讨论的微妙问题。然而，本着以太坊的精神，它是一个实用的工程解决方案，在实践中运行良好。
 
-##### History
+##### 历史
 
-The detailed history of Gasper is bound up with the development of the individual components, LMD GHOST and Casper FFG, which we will review in their respective sections. But we note here that Casper FFG was never designed to be a standalone consensus mechanism.
+Gasper 的详细历史与其组件 LMD GHOST 和 Casper FFG 的发展密切相关，我们将在它们各自的部分中进行回顾。但我们要在这里指出，Casper FFG 从未被设计为一个独立的共识机制。
 
-As stated in the [Casper FFG paper](https://arxiv.org/abs/1710.09437),
+正如 [Casper FFG 论文](https://arxiv.org/abs/1710.09437)中所述：
 
-> Casper the Friendly Finality Gadget is an overlay atop a _proposal mechanism_ &ndash; a mechanism which proposes blocks.
+> 友好的最终确定性小工具 Casper 是一个建立在提议机制（proposal mechanism，提议区块的机制）之上的覆盖层。
 
-So, there is an underlying block proposal mechanism &ndash; which implies an underlying consensus mechanism &ndash; that Casper FFG sits on top of, delivering a kind of meta-consensus that confers finality on the blockchain.
+因此，有一个底层区块提议机制——这意味着有一个提供某种元共识的底层共识机制，为区块链赋予最终确定性——而 Casper FFG 建立于其上。
 
-The original plan was to apply Casper FFG as a proof of stake overlay on top of Ethereum's proof of work consensus. Casper FFG would confer finality &ndash; a property that proof of work chains lack &ndash; on the chain on a periodic basis, say, every 100 blocks. This was intended to be the first step in weaning Ethereum off proof of work. With the finality guarantee, we could have reduced the proof of work block reward, and thereby reduced the overall hash power as an interim step towards replacing mining with full proof of stake at some future date.
+最初的计划是将 Casper FFG 作为权益证明覆盖层，叠加在以太坊的工作量证明共识之上。Casper FFG 将在链上定期赋予（如，每 100 个区块）最终确定性——这是工作量证明链所缺乏的属性。这被视作是让以太坊摆脱工作量证明的第一步。有了最终确定性的保证，我们可以减少工作量证明的区块奖励，从而减少总的哈希算力。这是一个过渡步骤，在未来某个日期最终会用完全的权益证明替代挖矿。
 
-By the end of 2017, this plan had become quite advanced. [EIP-1011](https://eips.ethereum.org/EIPS/eip-1011), Hybrid Casper FFG, describes the architecture in detail, and there was even a [testnet](https://hackmd.io/@aTTDQ4GiRVyyce6trnsfpg/Hk6UiFU7z?type=view) that [went live](https://web.archive.org/web/20230630135033/https://nitter.it/karl_dot_tech/status/947503029166546946) on the 31st of December, 2017.
+到 2017 年底，这个计划已经相当成熟。[EIP-1011](https://eips.ethereum.org/EIPS/eip-1011), 混合 Casper FFG (Hybrid Casper FFG)，详细描述了该架构，且在 2017 年 12 月 31 日甚至有一个[测试网](https://hackmd.io/@aTTDQ4GiRVyyce6trnsfpg/Hk6UiFU7z?type=view)[上线](https://web.archive.org/web/20230630135033/https://nitter.it/karl_dot_tech/status/947503029166546946)。
 
-In early 2018, however, that plan was superseded. The limited bandwidth of the Ethereum Virtual Machine constrained the size of the validator set that EIP-1011 could support, in turn leading to a minimum stake of 1500&nbsp;ETH, which was seen as undesirable. Around the same time, paths towards a full, much more scalable proof of stake protocol became clearer, and we began working on the design that became Ethereum&nbsp;2.0.
+然而，在 2018 年初，该计划被取代。以太坊虚拟机的有限带宽限制了EIP-1011 能支持的验证者集的大小，进而导致最低质押量为 1500 个以太币，这被视作是不可取的。大约在同一时间，通向一个完整的、更具可扩展性的权益证明协议的路径变得更加清晰，我们开始着手设计，也就是后来的以太坊 2.0。
 
-Due to its generic nature, Casper FFG was able to survive the redesign and was adopted into Ethereum&nbsp;2.0, not as an overlay on proof of work, but as an overlay on a new proof of stake protocol called LMD GHOST.
+由于其通用性，Casper FFG 能够在重新设计中幸存下来，并被以太坊 2.0 采用——不是作为工作量证明而是一个新的权益证明协议 LMD GHOST 的覆盖层。
 
-##### A finality gadget
+##### 最终确定性小工具
 
-When we say that Casper FFG overlays an existing block proposal mechanism, we mean that it takes an existing block tree and prunes it in a specific way. Casper FFG modifies the fork choice of the underlying block tree by making some of its branches inaccessible.
+当说到 Casper FFG 覆盖了现有的区块提议机制时，我们的意思是它采用了一个现有的区块树并以特定方式对其进行了修剪。通过使底层区块树的某些分支无法访问，Casper FFG 修改了这些区块树的分叉选择。
 
-Consider this block tree produced by some underlying consensus mechanism, whether it be proof of work, or LMD GHOST in proof of stake.
+请将这个区块树看作是由某种底层共识机制产生的，无论是工作量证明还是权益证明中的 LMD GHOST。
 
 <a id="img_gasper_blocktree"></a>
 <figure class="diagram" style="width: 70%">
@@ -614,16 +615,16 @@ Consider this block tree produced by some underlying consensus mechanism, whethe
 
 <figcaption>
 
-An arbitrary block tree with three forks (branches). Any of blocks $I$, $E$, or $M$ could be the tip of the chain. (The block labels are for convenience and do not imply a particular ordering.)
+有三个分叉（分支）的任意区块树。区块 $I$, $E$, $M$ 中的任意一个都可能是区块顶端（这些区块标识的选择是为了方便，而非暗示某种特定的排序）。
 
 </figcaption>
 </figure>
 
-In this situation, I have three candidate head blocks, $I$, $E$, and $M$. Under proof of work's longest chain rule, the choice of head block is obvious: I must choose M since it has the greatest block height, or (almost) equivalently the greatest amount of work done. Under LMD GHOST we can't choose a head block from this information alone, we'd need to see the votes from the other validators in order to make a choice.
+在上图情形中，我有三个候选的头块：$I$, $E$, $M$。在工作量证明的最长链规则下，头块的选择显而易见：我必须选择 $M$，因为它具有最大的区块高度，或者（几乎）等同于完成了做多的工作量。在 LMD GHOST 下，我们不能仅凭这一信息去选择头块，还需要看到其他验证者的投票才能做出选择。
 
-The challenge is that the chain from blocks $J$ to $M$ might be from an attacker. The attacker might have mined that chain in secret and revealed it later in a so-called 51% attack. Proof of work nodes would have no choice but to reorg to make $M$ the head, thereby favouring the attacker's chain and potentially becoming vulnerable to double-spends.
+挑战在于，从区块 $J$ 到 $M$ 的链可能来自于攻击者。攻击者可能秘密挖掘了该链，然后在所谓的 51% 攻击中使用它。工作量证明节点别无选择，只能进行重组以使 $M$ 成为头部，从而偏向攻击者的链，可能容易受到双花攻击。
 
-The value that Casper FFG brings is that it confers finality. Let's say that block $D$ is marked as final by Casper FFG (which automatically finalises blocks $A$, $B$, and $C$). Finalisation modifies the fork choice rule of the underlying protocol so that any branch with blocks that competes with block $D$ &ndash; that is, any block not descended from $D$ &ndash; is excluded. Equivalently, branches are pruned so that there are no forks prior to the finalised block.
+Casper FFG 的价值在于它赋予了最终确定性。假设区块 $D$ 被 Casper FFG 标记为是最终的（这会自动最终确定区块 $A$、$B$ 和 $C$）。最终确定性会修改底层协议的分叉选择规则，以排除任何与区块 $D$ 竞争的分支——即任何不是由 $D$ 派生的区块。换句话说，分支会被修剪，以确保在最终确定的区块之前没有分叉。
 
 <a id="img_gasper_blocktree_finalised"></a>
 <figure class="diagram" style="width: 70%">
@@ -632,99 +633,98 @@ The value that Casper FFG brings is that it confers finality. Let's say that blo
 
 <figcaption>
 
-We have the same block tree as above, but now block $D$ has been finalised. The Casper FFG fork choice says that any chain not including block $D$ is ignored, so our head block is now unambiguously $E$.
+这里的区块树和上一幅图片一样。但现在区块 $D$ 已经获得最终确定性。Casper FFG 分叉选择表明任何不包括区块 $D$ 的链都应该被忽略。毫无疑问，我们的头块现在是 $E$。
 
 </figcaption>
 </figure>
 
-When block $D$ is finalised, the fork choice must ignore the branches that begin with blocks $F$ and $J$. We end up with a single candidate head block, $E$.
+当区块 $D$ 被最终确定，分叉选择必须忽略以区块 $F$ 和区块 $J$ 打头的分支。我们最后只保留了一个候选头块：$E$。
 
-Essentially, the finality delivered by Casper FFG prevents long reorganisations (reversions). No finalised block, or ancestor of a finalised block, will ever be reverted. In Ethereum's Casper FFG implementation we must qualify "ever", with, "without burning at least 1/3 of the entire amount of staked Ether". This is the economic finality that the proof of stake chain provides.
+从根本上说，Casper FFG 所提供的最终确定性可以防止长时间的重组（回滚）。任何已获得最终确定性的区块或已获得最终确定性的区块的祖先都永远不会被回滚。在以太坊的 Casper FFG 实现中，我们必须对”永远”加以限定，即“不会烧掉至少 1/3 的全部以太币”的前提下。这就是权益证明链提供的经济最终确定性。
 
-#### Conclusion
+#### 结论
 
-As a reminder, [this](/part2/consensus/) is the sentence we are trying to understand in all its parts.
+As a reminder, [this](/part2/consensus/) is the sentence we are trying to understand in all its parts.回过头来，[这](/part2/consensus/)是那句我们尝试理解其所有部分的话。
 
-> The Proof-of-Stake (PoS) Ethereum consensus protocol is constructed by applying the finality gadget Casper FFG on top of the fork choice rule LMD GHOST, a flavor of the Greedy Heaviest-Observed Sub-Tree (GHOST) rule which considers only each participant's most recent vote (Latest Message Driven, LMD).
+> 以太坊的权益证明（PoS）共识协议是通过在分叉选择规则 LMD GHOST 之上应用最终确定性小工具 Casper FFG 来构建的，LMD GHOST 是贪婪、最重的被观察子树（Greedy Heaviest-Observed Sub-Tree, GHOST）规则的一种变体，它只考虑每个参与者的最近一次投票（最新消息驱动，Latest Message Driven, LMD）。
 
-We've spent some time on what a consensus protocol is and does, and touched a little on proof of stake. We talked about finality, and at a high level I've illustrated how Casper FFG forms a "finality gadget" applied on top of LMD GHOST as a block proposal mechanism.
+我们花了一些时间来讨论什么是共识协议，以及它做了什么，并简单了解了权益证明。我们讨论了最终确定性，并在较高层面上说明了 Casper FFG 如何形成了一个“最终确定性小工具”，被应用于作为区块提议机制的 LMD GHOST 之上。
 
-Much work remains, however. In the next sections we will take deeper dives into [LMD GHOST](/part2/consensus/lmd_ghost/), [Casper FFG](/part2/consensus/casper_ffg/), and how they combine to form the [Gasper](/part2/consensus/gasper/) protocol.
+但还有很多工作要做。在接下来的章节中，我们将更深入地探讨 [LMD GHOST](/part2/consensus/lmd_ghost/), [Casper FFG](/part2/consensus/casper_ffg/)，以及它们如何结合而成 [Gasper](/part2/consensus/gasper/) 协议。
 
-#### See also
+#### 另见
 
-On the history of how everything came together, Vitalik made a terrific [tweet storm](https://web.archive.org/web/20230630135150/https://nitter.it/VitalikButerin/status/1029900695925706753). Consolidated versions are available [here](https://www.trustnodes.com/2018/08/16/vitalik-buterin-tells-story-race-vlad-zamfir-implement-proof-stake-casper) and [here](https://hackmd.io/@liangcc/BJZDR1mIX?type=view). He discusses weak subjectivity a little, which we will deal with [later](/part2/validator/weak_subjectivity/).
+关于这一切是如何汇聚在一起的历史，Vitalik 发起过一场精彩的[推文风暴](https://web.archive.org/web/20230630135150/https://nitter.it/VitalikButerin/status/1029900695925706753)。可以在[这里](https://www.trustnodes.com/2018/08/16/vitalik-buterin-tells-story-race-vlad-zamfir-implement-proof-stake-casper)和[这里](https://hackmd.io/@liangcc/BJZDR1mIX?type=view)找到整理后的版本。他稍微讨论了一下弱主观性，我们[后面](/part2/validator/weak_subjectivity/)会处理这个问题。
 
-The [Proof of Stake FAQ](https://vitalik.ca/general/2017/12/31/pos_faq.html) remains an excellent primer on many of the topics we'll be covering.
+《权益证明常见问题》（[Proof of Stake FAQ](https://vitalik.ca/general/2017/12/31/pos_faq.html)）依然是我们将要讨论的许多话题的极好入门读物。
 
-Joachim Neu's presentation, [The Why and How of PoS Ethereum's Consensus Problem](https://www.youtube.com/watch?v=2nMS-TK_tMw) (at ETHconomics, Devconnect 2022), is a very accessible insight into the availability&ndash;finality trade-off, and how Ethereum seeks to manage it. We'll pick up again on the idea of "nested ledgers" when we get to the [Gasper protocol](/part2/consensus/gasper/).
+在 Devconnect 2022 的 ETHconomics 上，Joachim Neu 的演讲《以太坊权益证明的共识问题的缘由与解决方案》（[The Why and How of PoS Ethereum's Consensus Problem](https://www.youtube.com/watch?v=2nMS-TK_tMw)）对于可用性与最终确定性的权衡以及以太坊如何管理这一问题提供了非常易懂的见解。当我们讨论到 [Gasper 协议](/part2/consensus/gasper/)时，我们将再次提到“嵌套账本”的概念。
 
 ### LMD Ghost <!-- /part2/consensus/lmd_ghost/ -->
 
 <div class="summary">
 
-  - LMD GHOST is a fork choice rule used by nodes to determine the best chain.
-  - It assigns weights to branches based on votes from all active validators.
-  - LMD GHOST does not provide finality, but does support a confirmation rule.
-  - Slashing is used to solve the "nothing at stake" problem.
+  - LMD GHOST 是一种分叉选择规则，被节点用来确定最佳的链。
+  - 它根据所有活跃验证者的投票而赋予链的不同分支以权重。
+  - LMD GHOST 不提供最终确定性，但的确支持确认规则（confirmation rule）。
+  - 罚没被用来解决“无利害关系”问题。
 
 </div>
 
-#### Introduction
+#### 介绍
 
-In this section we will consider LMD GHOST in isolation, ignoring completely the Casper FFG finality overlay[^fn-casper-and-gasper-next]. LMD GHOST is the essence of a consensus mechanism in itself &ndash; it is a fork choice rule, just as the heaviest chain rule in Nakamoto consensus is &ndash; and has its own sets of properties and trade-offs.
+在本节中，我们将单独探讨 LMD GHOST，完全忽略 Casper FFG 的最终确定性覆盖层[^fn-casper-and-gasper-next]。LMD GHOST 自身就是一个共识机制的本质——它是一个分叉选择规则，就像中本聪共识中的最重链规则一样——并且有其自身的属性和权衡。
 
 [^fn-casper-and-gasper-next]: The next section covers [Casper FFG](/part2/consensus/casper_ffg/), and the one after that the combination of the two into [Gasper](/part2/consensus/gasper/).
 
-For now, we will be considering only the "how it works" part of the story - the happy flow. We will look at the "how it can go wrong" part later, in the [Issues and Fixes](/part2/consensus/issues/) section.
+当前，我们只考虑故事中“它如何运作”这个部分——畅通无阻的流程。在后面的“议题和修复（[Issues and Fixes](/part2/consensus/issues/)）”部分，我们会去探索“它如何出错”的那部分。
 
-#### Naming
+#### 命名
 
-The name LMD GHOST comprises two acronyms, for "Latest Message Driven", and "Greedy Heaviest-Observed Sub-Tree". We'll unpack GHOST first, then LMD.
+LMD GHOST 由两个缩写词组成，分别是”最新信息驱动的（Latest Message Driven, LMD），和”贪婪的、最重的可被观察子树（Greedy Heaviest-Observed Sub-Tree, GHOST）。我们会先打开 GHOST，然后是 LMD。
 
 ##### GHOST
 
-The GHOST protocol comes from a 2013 [paper by Sompolinsky and Zohar](https://eprint.iacr.org/2013/881) about how to safely improve transaction throughput on Bitcoin. Increasing the block size, or decreasing the interval between blocks, makes the chain more susceptible to forking in a network that has uncontrolled latency (delays), like the Internet. Chains that fork have more reorgs, and reorgs are bad for transaction security. Replacing Bitcoin's longest chain fork choice rule with the GHOST fork choice was shown to be more stable in the presence of latency, allowing block production to be more frequent.
+GHOST 协议源自 [Sompolinsky 和 Zohar 在 2013 年的一篇论文](https://eprint.iacr.org/2013/881)，论文讨论了如何在比特币区块链安全地提高交易吞吐量。增加区块大小或减少区块之间的间隔，会使链更容易在无法控制延迟的网络（如互联网）中分叉。分叉的链会出现更多的重构，而重构不利于交易的安全性。用 GHOST 分叉选择规则替换比特币的最长链分叉选择规则，被证明在存在延迟的情况下会更加稳定，允许更频繁的区块生产。
 
-The name GHOST stands for "Greedy Heaviest-Observed Sub-Tree", which describes how the algorithm works. We will expand on that [below](#finding-the-head-block). In short, GHOST's fork choice doesn't follow the heaviest chain, but the heaviest subtree. It recognises that a vote for a block is not only for that block, but implicitly a vote for each of its ancestors as well, so whole subtrees have an associated weight.
+GHOST 全称是“贪婪的、最重的可被观察子树”，这描述了 GHOST 算法的工作方式。我们将在[下面](#finding-the-head-block)展开讨论这一点。简而言之，GHOST 的分叉选择不是遵循最重的链，而是遵循最重的子树。它认识到对某个区块的投票不仅仅是针对该区块自身，也隐含着对该区块每一个祖先的投票，因此整个子树都获得相关的权重。
 
-Bitcoin never adopted GHOST, and (despite that paper stating otherwise) neither did Ethereum under proof of work, although it had [originally](https://ethereum.org/en/whitepaper/#modified-ghost-implementation) been planned, and the old proof of work "uncle" rewards were related to it.
+比特币从未采用 GHOST。和论文中声称的不同，工作量证明下的以太坊也没有采用这一协议。尽管以太坊[最初](https://ethereum.org/en/whitepaper/#modified-ghost-implementation)计划采用 GHOST，且曾经的工作量证明中的“叔块（uncle）”奖励与此相关。
 
 ##### LMD
 
-The GHOST protocol that we are using in Ethereum's proof of stake has been extended to be able to handle attestations. In proof of work, the voters are the block proposers. They vote for a branch by building their own block on top of it. In our proof of stake protocol, all validators are voters, and each casts a vote for its view of the network once every 6.4 minutes on average by publishing an attestation. So, under PoS, we have a lot more information available about participants' views of the network.
+我们在以太坊的权益证明中使用的 GHOST 协议已经扩展，能够处理认证。在工作量证明中，投票者是区块提议者。他们通过将自己的区块构建在某个特定分支上来为其投票。在我们的权益证明协议中，所有验证者都是投票者。通过发布认证，每个验证者平均每 6.4 分钟为其对网络的视图投票一次。因此，在权益证明下，我们可以获得更多关于参与者对网络的视图的信息。
 
-This is what it means to be "message driven", giving us the MD in LMD. The fork choice is driven not by blocks added by proposers, but by messages (attestations, votes) published by all validators.
+这就是所谓的“消息驱动”，我们有了 LMD 中的 MD。分叉选择不是由提议者添加的区块驱动的，而是由所有验证者发布的消息（认证、投票）驱动的。
 
-The "L" stands for "latest": LMD GHOST takes into account only the _latest_ message from each validator, that is, the most recent attestation that we have received from that validator. All a validator's earlier messages are discarded, but its latest vote is retained and has weight indefinitely.
+这里的 ”L“ 代表”最新（latest）“：LMD GHOST 只考虑每个验证者的最新信息，即我们从该验证者收到的最新认证。验证者之前的所有信息都会被丢弃，但其最新的投票被保留，并且无限期地具有权重。
 
-As a side note, other versions of message-driven GHOST are available. Vitalik [initially favoured](https://web.archive.org/web/20230630135311/https://nitter.it/VitalikButerin/status/1029906757512966144#m) IMD, "Immediate Message Driven", GHOST. As far as I can tell[^fn-imd-tricky], this retains all attestations indefinitely, and the fork choice chooses based on whatever attestation was current at the time. Then there's [FMD](https://ethresear.ch/t/saving-strategy-and-fmd-ghost/6226?u=benjaminion), "Fresh Message Driven", GHOST, which considers attestations only from the current and previous epochs. And [RLMD](https://ethresear.ch/t/a-simple-single-slot-finality-protocol/14920?u=benjaminion), "Recent Latest Message Driven", GHOST which remembers validators' latest attestations only for a parameterisable number of epochs.
+顺便说一句，还有其他版本的消息驱动的 GHOST 可用。Vitalik [最初倾向](https://web.archive.org/web/20230630135311/https://nitter.it/VitalikButerin/status/1029906757512966144#m)于 IMD GHOST，即”即时消息驱动的（Immediate Message Driven）“  GHOST。据我所知[^fn-imd-tricky]，这会无限期地保留所有认证，且分叉选择是基于当时的最新认证运行的。然后是 [FMD](https://ethresear.ch/t/saving-strategy-and-fmd-ghost/6226?u=benjaminion) GHOST，即“新鲜消息驱动（Fresh Message Driven）”的 GHOST，它只考虑当前时段和上一个时段的认证。还有 [RLMD](https://ethresear.ch/t/a-simple-single-slot-finality-protocol/14920?u=benjaminion)，即“近期的最新消息驱动（Recent Latest Message Driven）”的 GHOST，它只记下验证者在某个可参数化的时段内的最新认证。
 
 [^fn-imd-tricky]: I've yet to find a lucid exposition of IMD GHOST. Looking back through the history on the [original mini-spec](https://ethresear.ch/t/beacon-chain-casper-mini-spec/2760?u=benjaminion) gives some information, but it's hard to understand what was really happening. It was first known as ["recursive proximity to justification"](https://web.archive.org/web/2/https://nitter.it/VitalikButerin/status/1029906887376961536#m), since it was bound up with Casper FFG in a way that LMD GHOST is not.
 
-#### How it works
+#### 它如何运作
+LMD GHOST 首先是一个[分叉选择规则](/part2/consensus/preliminaries/#fork-choice-rules)。给定一个区块树和一系列投票，LMD GHOST 会告诉我应该将哪个区块视为最佳头块，从而提供一个从该头块一直到创世区块的线性历史视图。这一决策基于我对链的本地视图，即我的节点收到的消息（区块和认证）——记住，没有“上帝视角”，我的本地视图是我所能利用的全部，它很可能与其他节点的本地视图不同。我们的想法是，诚实的验证者会根据他们看到的最佳头块来构建自己的区块，并将根据他们看到的最佳头块进行投票。
 
-LMD GHOST, above all, is a [fork choice rule](/part2/consensus/preliminaries/#fork-choice-rules). Given a tree of blocks and a collection of votes, LMD GHOST will tell me which block I should consider to be the best head, thereby giving me a linear view of history from that head all the way back to genesis. The decision is based on my local view of the chain, based on the messages (blocks and attestations) that my node has received - remember, there is no "God's eye view", my local view is all that I have to work with, and it may well differ from other nodes' local views. The idea is that honest validators will build their blocks on the best head that they see, and will in turn cast their votes according the best head block they see.
-
-Some things that a good fork choice rule will deliver are as follows.[^fn-good-fork-choice-rule]
+一个好的分叉选择规则将提供以下几点：[^fn-good-fork-choice-rule]
 
 [^fn-good-fork-choice-rule]: I've adapted this from an old post of Vitalik's, [PoS fork choice rule desiderata](https://ethresear.ch/t/pos-fork-choice-rule-desiderata/2636?u=benjaminion). I'm postponing his finality point for now. I am not aware of much formal analysis of LMD GHOST with respect to properties like these; in fact, our implementation of LMD GHOST [may not do too well](https://arxiv.org/pdf/2302.11326.pdf) in some respects. But these goals are worth bearing in mind as we explore how the mechanism works.
 
-  - Majority honest progress: if over 50% of nodes build blocks by following the fork choice rule, the chain progresses and is (exponentially) unlikely to revert older blocks.
-  - Stability: the fork choice is a good prediction of the future fork choice.
-  - Manipulation resistance: even if an attacker captures a temporary supermajority of some small set of participants, the attacker is unlikely to be able to revert blocks.
+  - 多数节点诚实进展：如果超过 50% 的节点按照分叉选择规则构建区块，链就会前进，并且（指数级地）不太可能回滚旧区块。
+  - 稳定性：分叉选择可以很好地预测未来的分叉选择。
+  - 抗操纵性：即使攻击者在一小部分参与者中成为绝对多数，攻击者也不太可能做到回滚区块。
 
-All these points are interrelated. Stability, in particular, is important for block proposers. When I propose a block, I want to be as sure as I possibly can be that the block will remain in the chain forever. Equivalently, that it will not be reorged out. Finding the head block means finding the block that most likely will make my new block the head in the views of other nodes when I build on it.
+这几点都是相互关联的。对于区块提议者来说，稳定性尤其重要。当我提出一个区块时，我希望尽可能确定该区块将永远保留在链上。也就是，我希望尽可能确信它不会被重组出链。找头块意味着当我找到它并在其基础上构建新区块时，我找到的头块最有可能使我的构建的新区块成为其他节点的视图中的头块。
 
-We'll divide our exploration of how LMD GHOST works in two. We'll look first at the LMD part, latest messages, and then at the GHOST part, finding the head.
+我们将一分为二地探讨 LMD GHOST 如何运作。先看 LMD 部分，即最新消息，然后再看 GHOST 部分，即寻找头块。
 
-##### Latest messages
+##### 最新消息
 
-Messages, in this context, are the head block votes found in attestations.
+在此处的语境中，“消息”是指在认证中对头块的投票。
 
-###### Votes in LMD GHOST
+###### LMD GHOST 中的投票
 
-In an attestation's [data](/part3/containers/dependencies/#attestationdata), the head vote is the `beacon_block_root` field:
+在认证的[数据](/part3/containers/dependencies/#attestationdata)中, 头块投票是 `beacon_block_root` 字段:
 
 ```python
 class AttestationData(Container):
@@ -737,50 +737,50 @@ class AttestationData(Container):
     target: Checkpoint
 ```
 
-Every honest validator makes an attestation exactly once per epoch, containing its vote for the best head block in its view at the moment that it attests. Within each epoch, the validator set is split up so that only $1/32$ of the validators are attesting at each slot. (The `index` field in this structure relates to the attesting validators being further divided into up to 64 [committees](/part2/building_blocks/committees/) at each slot for operational reasons, but this is not relevant to the mechanics of LMD GHOST and we shall ignore it.)
+每个诚实的验证者在每个时段都恰好进行一次认证，其中包含在进行认证时它对最佳头块的投票。在每个时段内，验证者集被分成 32 份，以使每个时隙中只有 $1/32$ 的验证者进行认证。（该结构中的 `index` 字段与进行认证的验证者有关。出于实施的原因，每个时隙中的验证者被进一步划分为最多 64 个[委员会](/part2/building_blocks/committees/)，但这与 LMD GHOST 的机制无关，我们在此先忽略它。）
 
-Nodes receive attestations both directly, via attestation gossip, and indirectly, contained in blocks. In principle, a node could receive attestations through other means &ndash; I could type an attestation in at the keyboard if I wished &ndash; but in practice votes propagate only via attestation gossip and within blocks.
+节点既可以通过认证广播（attestation gossip）直接接收认证，也可以通过包含在区块中的消息来间接接收认证。原则上，节点可以通过其他方式接收认证——如果愿意，我可以在键盘上输入认证——但在实践中，投票只经由认证广播和区块而得到传播。
 
-###### Storing latest messages
+###### 存储最新消息
 
-On receiving an attestation, by whatever means, the node calls the fork choice's [`on_attestation()`](/part3/forkchoice/phase0/#on_attestation) handler. Before proceeding, the `on_attestation()` handler performs some basic [validity checks](/part3/forkchoice/phase0/#validate_on_attestation) on the attestation:
+节点接收到一个认证后，无论通过何种方式，都会调用分叉选择的 [`on_attestation()`](/part3/forkchoice/phase0/#on_attestation) 处理器（handler）。`on_attestation()` 处理器会先对认证进行一些基本的有效性检查（[validity checks](/part3/forkchoice/phase0/#validate_on_attestation)）：
 
-  - Is it too old?
-    - It must be from the current or previous epoch. See [Attestation consideration delay](/part2/consensus/issues/#attestation-consideration-delay).
-  - Is it too new?
-    - It must be from no later than the previous slot. See [Attestation recency](/part2/consensus/issues/#attestation-recency).
-  - Do we know about the block that it is voting for, the `beacon_block_root`?
-    - We must have received that block already. If not we might try to fetch it from a peer.
-  - Is its signature correct?
-    - Validators sign attestations and are accountable for them.
-  - Is the attestation slashable?
-    - We must ignore attestations that conflict with other attestations. See [Attestation equivocation](/part2/consensus/issues/#attestation-equivocation).
+  - 它是不是太旧了？
+    - 它必须来自当前或上一个时段。参见 [Attestation consideration delay](/part2/consensus/issues/#attestation-consideration-delay)。
+  - 它是不是太新了？
+    - 它不能晚于上一个时隙。参见 [Attestation recency](/part2/consensus/issues/#attestation-recency)。
+  - 我们是否知道它投票支持的区块，即 `beacon_block_root`？
+    - 我们必须已经收到那个区块。如果没有，我们可能会尝试从对等节点那里获取它。
+  - 它的签名是否正确？
+    - 验证者对认证签名并对其负责。
+  - 该认证是否是可被罚没的（slashable）？
+    - 我们必须忽略与其他认证相冲突的认证。参见 [Attestation equivocation](/part2/consensus/issues/#attestation-equivocation)。
 
-After passing these and some other checks, the attestation is considered for insertion into the node's Store, which is its repository of information about the state of the chain: its view. This is done in [`update_latest_messages()`](/part3/forkchoice/phase0/#update_latest_messages). If we don't already have a head block vote for the validator, then this one is stored for it. If we have a head block vote for the validator, then this one replaces it if it is more recent.
+在通过这些和其他一些检查后，认证被考虑插入节点的存储库（Store）中，这是其关于链状态的信息库，即节点的视图。这是在 [`update_latest_messages()`](/part3/forkchoice/phase0/#update_latest_messages) 中完成的。如果我们还没有该验证者的头块投票，那么现在就可以存储。如果我们已经有验证者的头块投票，而当前认证是更近期的，它就会替代原来的投票。
 
-Over time, then, a node's Store builds up a list containing a single latest vote for each validator that it has heard from.
+随着时间的推移，节点的存储库会逐渐建立起一个列表，其中包含每个验证者的最新投票。
 
-Note that a vote can be inserted in the store only if we heard about it in the same epoch or the epoch after it was made. However, once it is in the store it remains there indefinitely, and continues to contribute to the fork choice until it is updated with a more recent vote. This is a key difference between LMD GHOST and, say, the [Goldfish protocol](https://arxiv.org/pdf/2209.03255.pdf), or [RLMD GHOST](https://arxiv.org/pdf/2302.11326.pdf).
+请注意，只有我们在与投票所完成的同一个时段或在该时段后的时段获取它，投票才能被插入存储库。然而，一旦投票在存储库中，它就会无限期地留在那里，并继续为分叉选择做出贡献，直到它被更近期的投票更新。这是 LMD GHOST 与例如 [Goldfish 协议](https://arxiv.org/pdf/2209.03255.pdf)或 [RLMD GHOST](https://arxiv.org/pdf/2302.11326.pdf) 之间的一个关键区别。
 
-##### Finding the head block
+##### 寻找头块
 
-In essence, the LMD GHOST fork choice rule is a function $\text{GetHead}(\text{Store}) \rightarrow \text{HeadBlock}$. As we've seen, a node's Store is its view of the world: all the relevant information it has received that could affect the fork choice. For the pure LMD GHOST algorithm we are looking at here, the relevant parts of the [Store](/part3/forkchoice/phase0/#store) are the following.
+本质上，LMD GHOST 分叉选择规则是一个函数 $\text{GetHead}(\text{Store}) \rightarrow \text{HeadBlock}$。正如我们所见，节点的存储库是其对世界的视图：它所接收到的所有可能影响分叉选择的相关信息。对于我们在这里看到的纯粹 LMD GHOST 算法，存储库（[Store](/part3/forkchoice/phase0/#store)）的相关信息如下。
 
-  - The block tree, which is just a list of blocks. The blocks' parent links join them logically into a tree.
-  - The list of latest messages (votes) from validators.
-  - The validators' [effective balances](/part2/incentives/balances/) (based on some state) as these provide the weights used in the algorithm.
+  - 区块树（它只是一个区块列表）。区块的父母级链接将它们在逻辑上连成一棵树。
+  - 来自于验证者的最新消息（投票）列表。
+  - 验证者的有效余额（[effective balances](/part2/incentives/balances/)）(基于某种状态)，因其提供了算法中使用的权重。
 
-The goal of the GHOST algorithm is to select a single leaf block from the given block tree, where a leaf is a block without any descendants. This will be our chosen head block.
+GHOST 算法的目标是从给定的区块树中选择一个叶子区块，其中叶子是指一个没有任何后代的区块。这将是我们所选择的头块。
 
-We are going to assume that all the blocks in our block tree descend from a single root block. In a pure GHOST algorithm, that would be the genesis block: by definition, all blocks must descend from genesis. In our full consensus implementation, that root block will be the last justified checkpoint block. For our present purposes, all we need to know is that the GHOST algorithm starts from a given block, and ignores all blocks not descended from that block.
+我们将假设区块树中的所有区块都源自一个根区块。在纯粹的 GHOST 算法中，那将是创世区块：根据定义，所有区块都必须源自创世。在我们完整的共识实现中，那个根区块将是最后一个被合理化的检查点区块。就我们当前的目的而言，我们只需知道 GHOST 算法从一个给定的区块开始，并忽略所有不是从该区块派生出来的区块。
 
-###### Get weight
+###### 获取权重
 
-The first thing we do is calculate the "weight" of each branch in the tree. A branch's weight is its score, in some sense.
+我们首先做的是计算树中每个分支的“权重”。从某种意义上说，一个分支的权重就是它的得分。
 
-The weight of a vote is the [effective balance](/part2/incentives/balances/) of the validator that made the vote. This will usually be 32 ETH, the maximum effective balance, but could be less. A vote, recall, is the latest message we have from that validator.
+投票的权重是进行投票的验证者的[有效余额](/part2/incentives/balances/)。这通常是 32 个以太币，即最大有效余额，但也可能更少。回想一下，投票就是我们从验证者那里得到的最新消息。
 
-The weight of a branch is the weight of the votes for the block that roots it, plus the weights of that block's child branches. By including the weights of child branches, we are acknowledging that a vote for a block is also a vote for each of the ancestors of that block. The weight of a branch consisting of only a leaf block will be just the weight of the votes for that block.
+一个分支的权重是其根部区块得到的投票权重，加上该块子分支的权重。通过包括子分支的权重，我们承认对一个块的投票也是对该块每个祖先的投票。只由一个叶块组成的分支的权重将仅是该叶块获得票数的权重。
 
 <a id="img_annotated_forkchoice_get_weight_0"></a>
 <figure class="diagram" style="width: 90%">
@@ -789,30 +789,30 @@ The weight of a branch is the weight of the votes for the block that roots it, p
 
 <figcaption>
 
-$B_N$ is the sum of the effective balances of the validators whose most recent head vote was for block $N$, and $W_N$ is the weight of the branch rooted at block $N$.
+$B_N$ 是将最新的头块投票给了区块 $N$ 的验证者们, $W_N$ 是以区块 $N$ 为根的分支的权重。
 
 </figcaption>
 </figure>
 
-Some obvious relationships apply between the weights, $W_x$, of branches, and $B_x$, the weights of the votes for blocks.
+分支的权重 $W_x$ 和对区块的投票权重 $B_x$ 之间存在一些明显的关系。
 
-  - For a branch comprising only a leaf block, $L$, $W_L = B_L$.
-  - The weight of a branch is the weight of the votes for the block at its root plus the sum of the weights of all branches below it. So, in the diagram, $W_1 = B_1 + W_2 + W_3$.
-  - The weight of a branch is the sum of the weights of all votes for blocks in the subtree that forms the branch.
+  - 对于只包含一个叶块的分支 $L$, $W_L = B_L$.
+  - 一个分支的权重是其对根部区块投票的权重加上其下所有分支的权重之和。所以，在图表中，$W_1 = B_1 + W_2 + W_3$.
+  - 一个分支的权重是构成该分支的子树中的所有区块所获得的投票权重的和。
 
-Since votes always carry a positive weight, no block will have a greater weight than the root block, and the root block's weight is the sum of the weights of all the votes for blocks in the tree. Every validator has at most one latest message &ndash; that is, one vote &ndash;, so that weight is bounded above by the total effective balance of all active validators.[^fn-ignoring-proposer-boost]
+由于投票总是带有正权重，因此没有任何区块的权重会大于根块的权重，根区块的权重是树中所有区块的投票权重之和。每个验证者最多有一个最新消息——也就是一票——因此，权重被限制在所有活跃验证者的总有效余额之下。[^fn-ignoring-proposer-boost]
 
 [^fn-ignoring-proposer-boost]: Ignoring proposer boost, which we shall deal with [later](/part2/consensus/issues/#proposer-boost).
 
-###### Get head
+###### 获取头块
 
-Once we have the weight of each branch or subtree, the algorithm proceeds recursively. Given a block, we select the heaviest branch descending from it. We then repeat the process with the block at that branch's root. If a block has only one child, then the choice is obvious and there is no work to do. If two or more branches have equal weight, we arbitrarily choose the branch rooted at the child block with the highest block hash value. Eventually we will reach a block with no children. This is a leaf block and will be the output of the algorithm.
+一旦我们得到每个分支或子树的权重，算法就会递归进行。给定一个区块，我们选择从从它开始的最重的分支。然后，我们对位于该分支根部的区块重复这个过程。如果某区块只有一个子块，那么选择显而易见，不需要做任何工作。如果两个或更多分支的权重相同，我们就任意选择一个根位于具有最高区块哈希值的子区块的分支。最终会找到一个没有子块的区块。这是一个叶子区块，也将是算法的输出结果。
 
-Unpacking the GHOST name, we see that the algorithm: is Greedy, meaning that it takes the Heaviest-Observed branch immediately, without looking further; and deals with Sub-Trees, the weight of a branch being the sum of all the weights of votes for blocks in the subtree.
+展开 GHOST，我们就会发现该算法：是贪婪的（Greedy），即立即选取最重的可被观察的（Heaviest-Observed）分支，而不进一步搜寻；并且处理子树（Sub-Trees），一个分支的权重是子树中所有区块投票权重的总和。
 
-Here's a simple example. In the diagrams, I've distinguished between (1) the weight of the votes for a particular block, which are the numbers attached to each block, and (2) the weights of branches, which I've added to the lines joining the blocks to their parents.
+下面是一个简单的例子。在图中，我区分了（1）特定区块的票数的权重，即附在每个区块上的数字；（2）分支的权重，我将其添加到连接区块与其父母辈区块的线上。
 
-First, from the latest messages in the Store, we calculate the weight of votes for each block in the tree.
+第一，根据存储库中的最新消息，我们来计算树中每个区块的投票权重。
 
 <a id="img_annotated_forkchoice_lmd_ghost_0"></a>
 <figure class="diagram" style="width: 85%">
@@ -821,12 +821,12 @@ First, from the latest messages in the Store, we calculate the weight of votes f
 
 <figcaption>
 
-`get_head()` starts from the root block, $A$, of a block tree. The numbers show the weights of the votes for each block.
+`get_head()` 函数以区块树的根区块 $A$ 开始。数字表示每个区块的票数权重。
 
 </figcaption>
 </figure>
 
-Second, from the weights of votes for each block, we can calculate the weight of each branch or subtree.
+第二，根据每个区块的票数权重，我们可以计算出每个分支或子树的权重。
 
 <a id="img_annotated_forkchoice_lmd_ghost_1"></a>
 <figure class="diagram" style="width: 85%">
@@ -835,12 +835,12 @@ Second, from the weights of votes for each block, we can calculate the weight of
 
 <figcaption>
 
-The `get_weight()` function when applied to a block returns the total weight of the subtree of the block and all its descendants. These weights are shown on the lines between child and parent blocks.
+当函数 `get_weight()` 被应用于一个区块时，会返回该区块的子树及子树所有后代的总权重。这些权重显示在子块和父母代区块之间的线上。
 
 </figcaption>
 </figure>
 
-Third, we move recursively through the blocks at the roots of the subtrees, always choosing the branch or subtree with the highest weight. Eventually, we will reach a leaf, which is our chosen head block.
+第三，我们在子树根部的区块中递归移动，始终选择权重最高的分支或子树。最终，我们将到达一片叶子，也就是我们选择的头块。
 
 <a id="img_annotated_forkchoice_lmd_ghost_2"></a>
 <figure class="diagram" style="width: 85%">
@@ -849,86 +849,86 @@ Third, we move recursively through the blocks at the roots of the subtrees, alwa
 
 <figcaption>
 
-At block $A$, branch $C$ is heavier. At $C$, branch $E$ is heavier. Block $E$ is a leaf block, so it is GHOST's choice for the head of the chain. Our blockchain is $[A \leftarrow C \leftarrow E]$. A "longest chain" rule would have chosen block $G$, although that branch has minority support from validators.
+在区块 $A$ 处，分支 $C$ 更重。在 $C$ 处，分支 $E$ 更重。区块 $E$ 是一个叶块，因而是 GHOST 所选择的区块。我们的区块链是 $[A \leftarrow C \leftarrow E]$。“最长链”的规则将在此选择区块 $G$，尽管该分支仅获得验证者的少数支持。
 
 </figcaption>
 </figure>
 
-If, say, the subtrees rooted at $B$ and $C$ had equal weight, we would choose according to which of blocks $B$ and $C$ had the greatest block hash - this is a completely arbitrary tie-break mechanism.
+如果说，以区块 B 和区块 C 为根的子树有相同权重，我们将选择具有最大的区块哈希值的那个区块——这是一个完全任意的决断机制。
 
-###### The specification
+###### 规范
 
-The code that implements all this in the specification is [`get_head()`](/part3/forkchoice/phase0/#get_head), which walks up through the tree from the root, taking the heaviest branch at each fork. The code for calculating the weight of a subtree is [`get_weight()`](/part3/forkchoice/phase0/#get_weight).
+在规范中实现这一切的代码是 [`get_head()`](/part3/forkchoice/phase0/#get_head)，它从区块树的根向上走，每到一个分叉处就取最重的分支。计算子树权重的代码是 [`get_weight()`](/part3/forkchoice/phase0/#get_weight)。
 
-If you look at the [`get_weight()`](/part3/forkchoice/phase0/#get_weight), you'll find that it is more complex than what we've covered here, due to something called "proposer boost". We shall discuss proposer boost in detail in the [Issues and Fixes](/part2/consensus/issues/) section.
+如果你查看一下 [`get_weight()`](/part3/forkchoice/phase0/#get_weight)，就会发现它比我们在这里介绍的要复杂，这是由于一种叫做 “proposer boost（提议者权重提升）”的东西。我们将在 “议题与修复（[Issues and Fixes](/part2/consensus/issues/)）”部分详细讨论它。
 
-#### Intuition
+#### 直觉
 
-Having seen how the GHOST protocol works, it's perhaps easier to gain some intuition for why we prefer it to a longest chain rule. The occurrence of forks suggests that block propagation time has become of similar order to, or exceeds, block production intervals (slots). In short, not all validators are seeing all the blocks in time to attest to them or to build on them.[^fn-toward-12s]
+在了解了 GHOST 协议的工作原理后，我们或许能更直观地理解为什么更喜欢它而不是最长链规则。分叉的出现表明，区块传播时间已经与区块生产间隔（时隙）相近，甚至超过了区块生产间隔（时隙）。简而言之，并非所有验证者都能及时看到所有区块，对其进行认证或在其上构建新区块。[^fn-toward-12s]
 
 [^fn-toward-12s]: See Vitalik's [Toward a 12-second block time](https://blog.ethereum.org/2014/07/11/toward-a-12-second-block-time) for a fascinating analysis of this in a proof of work context. However, not much of it carries over to our PoS implementation, except that GHOST helps to make sense of a forkful network.
 
-In these circumstances, we want to take advantage of the maximum amount of information available. Votes for two different children of the same parent block should be taken as confirmation that all those validators favour the parent block's branch, even if there is disagreement about the child blocks. GHOST achieves this simply by allowing a vote for a child block to add weight to all of its ancestors. Thus, when faced with a choice, we favour the branch with the greatest total support from validators. I've illustrated this in the [diagram above](#img_annotated_forkchoice_lmd_ghost_2): branch $C$ is favoured over branch $B$, even though block $B$ has more direct votes than block $C$, since more validators overall made latest votes for branch $C$.
+在这种情况下，我们需要最大限度地利用可用信息。对同一个父母区块的两个不同子区块的投票，应被视为是所有验证者都支持父母块分支，即使它们对子区块存在不同意见。GHOST 实现这一点的方法很简单，就是允许对子区块的投票增加其所有祖先区块的权重。因此，在面临选择时，我们会倾向于得到了验证者最大支持的分支。我在[上面的图表](#img_annotated_forkchoice_lmd_ghost_2)中说明了这一点：即使区块 $B$ 比区块 $C$ 得到更多的直接投票，分支 $C$ 还是比分支 $B$ 得到更多支持，因为总体上支 $C$ 拥有更多的验证者的最新投票。
 
-The longest chain rule discards all this information, and can allow a branch to win even if only a minority of validators has been working on it.
+最长链规则会扔掉所有这些信息。即使只有少数验证者在在某个分支上工作，最长链规则也可能会让该分支获得胜利。
 
-#### Confirmation rule
+#### 确认规则
 
-In proof of work, the only data available for input into the fork choice comes from block production, which represents the view of a single miner at the time of publishing the block.
+在工作量证明中，唯一可用于分叉选择的数据来自区块生产，它代表了单个矿工在发布该区块时的视图。
 
-In Ethereum's proof of stake protocol, we have vastly more information available to us, in the form of head block votes from $\frac{1}{32}$ of the validator set every 12 seconds, in addition to the block proposer's view.
+而在以太坊的权益证明协议中，除了区块提议者的观点外，我们可以获得更多的信息，这些信息以头块投票的形式来自于每 12 秒中 $\frac{1}{32}$ 的验证者集。
 
-In principle, all this extra information ought to allow us to be very sure, very quickly, about whether blocks will remain canonical or are in danger of being reverted. Proof of work chains tend to use a heuristic around the number of confirmations that a block has received. That is, blocks are assumed to be exponentially less likely to be reverted the more blocks have been built on top of them. This is generally true, but can fail badly in high-latency environments (such as an attacker making a longer chain in secret).
+原则上，所有这些额外的信息应该能使我们非常快和非常确定地知道区块是否会保持规范或是否有被回滚的危险。工作量证明链倾向于围绕区块所收到的确认数量使用启发式方法。也就是说，区块被回滚的可能性随着在其上构建的区块数量的增加而呈指数级减少。这种假设通常是正确的，但在高延迟环境中可能会摔得很惨（例如攻击者秘密创建更长的链）。
 
-Proof of stake's ultimate answer to this is finality, which we shall look at in the next section. LMD GHOST on its own does not provide finality. However, it's interesting to consider whether there is some heuristic analogous to proof of work's confirmations rule that we can use, and it turns out that [there is](https://ethresear.ch/t/confirmation-rule-for-ethereum-pos/15454?u=benjaminion). In fact, it improves on the PoW confirmation rule by giving a "yes/no" statement about the safety of a block, rather than a probability.
+对这个问题，我们将在下一节中看到，权益证明的最终答案是最终确定性。LMD GHOST 本身并不提供最终确定性。不过，我们可以考虑是否存在某种类似于工作证明确认规则的启发式方法，而事实证明确实[存在](https://ethresear.ch/t/confirmation-rule-for-ethereum-pos/15454?u=benjaminion)。实际上，它通过给出关于区块安全性的“是/否”声明，而不是概率，改进了工作量证明的确认规则。
 
-The details of the confirmation rule are described by Aditya Asgaonkar in a [blog post](https://www.adiasg.me/confirmation-rule-for-ethereum/) and an accompanying paper. The general idea is that, for a block $b$, we calculate two values $q$ and $q_\text{min}$. When $q > q_\text{min}$, _and_ the network remains close to synchronous, then that block is confirmed as "safe". We can be fully confident that it will not be reorged.
+Aditya Asgaonkar 在一篇[博文](https://www.adiasg.me/confirmation-rule-for-ethereum/)和随附的论文中介绍了确认规则的细节。总体思路是，对于一个区块 b，我们计算 $q$ 和 $q_\text{min}$ 两个值。当 $q > q_\text{min}$ ，且网络仍接近同步时，则该区块被确认为“安全”。我们可以完全确信，它不会被重组。
 
-The quantity $q^n_b$ is defined as the weight of the subtree rooted at $b$ at slot $n$ divided by the total weight of votes cast since $b$ was produced. Simply put, if, in the slots since $b$ was proposed, 80% of validators voted for $b$ or a descendant of $b$, then $q^n_b$ would be $0.8$.
+数量 $q^n_b$ 被定义为在时隙 $n$ 时，以 $b$ 区块为根的子树的权重除以自 $b$ 被提议以来投出的总投票权重。简单来说，自区块 $b$ 被提议以来，在各个时隙中，如果有 80% 的验证者为 $b$ 或其后代区块投票，那么 $q^n_b$ 就是 $0.8$。
 
-$q_\text{min}$ is defined as $\frac{1}{2} + \beta$, where $\beta$ is the fraction of stake we believe is controlled by an adversary. This fraction is unknown, but is assumed to be less than one third, otherwise we have big problems.
+$q_\text{min}$ 被定义为 $\frac{1}{2} + \beta$，其中 $\beta$ 是我们认为由对手控制的质押比例。这个比例是未知的，但假设是少于三分之一，不然我们就会有大问题。
 
-Now, if $q^n_{b'} > q_\text{min}$ for $b$ and all its (non-finalised) ancestors, $b'$, then $b$ is considered to be confirmed, or "safe".
+现在，如果对于 $b$ 及其所有（还未最终确定的）祖先 $b'$，都有 $q^n_{b'} > q_\text{min}$，那么 $b$ 就被视作是已确认的，或者说是“安全的”。
 
-The idea is that, once a branch up to block $b$ has accumulated a simple majority of the available voting weight, then all honest validators will continue to vote for that branch, so it will maintain its majority indefinitely. One way this can fail is if dishonest validators swap their votes to another branch, giving that branch a majority instead. That's why we add a fraction $\beta$ to the basic majority safety parameter of $\frac{1}{2}$, so that, even if all the dishonest validators swap branches, our branch maintains a majority. The other way this can fail is if the network begins to suffer delays or partitions (loses synchrony), so that some honest validators cannot see other honest validators' votes, hence the reliance on the network remaining sufficiently synchronous.
+背后的想法是，当一个从区块 b 开始的分支累积了可用投票权重的简单多数后，所有诚实的验证者将继续为该分支投票，因此它将无限期地保持其多数地位。如果不诚实的验证者把他们的票转移到另一个分支，使该分支获得多数票，这个方法就可能失败。这就是为什么我们在基本多数安全参数 $\frac{1}{2}$ 上增加了一个分数 $\beta$。这样即使所有不诚实的验证者更换分支，我们的分支也能保持多数票。另一种失败的原因是，如果网络开始出现延迟或分区（失去同步性），以至于一些诚实的验证者看不到其他诚实验证者的投票，因此这一方法依赖网络保持足够的同步性。
 
-While this seems very intuitive, there are some important subtleties and complications related to the integration with Casper FFG that modify the confirmation rule, so anyone dealing with this should consult the [full paper](https://ethresear.ch/uploads/short-url/fV7zyTggJtMn8xlUUNVXTOB532G.pdf) (which remains a draft). In addition, [proposer boost](/part2/consensus/issues/#proposer-boost) makes it easier for an adversarial block proposer to reorg a block, so we need to account for that as well.
+虽然这看起来非常直观，但与 Casper FFG 集成相关的一些重要细微差别和复杂性修改了确认规则，因此任何与确认规则打交道的人都应该查阅[完整论文](https://ethresear.ch/uploads/short-url/fV7zyTggJtMn8xlUUNVXTOB532G.pdf)（仍然是草稿）。此外，提议者增强 ([proposer boost](/part2/consensus/issues/#proposer-boost)) 使得敌对方的区块提议者更容易重组一个区块，因此我们也需要考虑到这一点。
 
-The table below summarises the differences between the confirmation rule and finality for a block.
+下表总结了区块的确认规则和最终确定性之间的差异。
 
-| &nbsp;   | Confirmation      | Finality |
+| &nbsp;   | 确认      | 最终确定性 |
 | ----     | --------          | -------- |
-| Time | One slot in ideal circumstances, less than a minute more generally. | At least two epochs / 13 minutes. |
-| Assumptions | Network remains synchronous until finality. | No synchrony assumption. |
-| Breakage | A confirmed block can be reorged if the network does not remain synchronous. | A conflicting block can be finalized if more than $\frac{1}{3}$ of the validators commit a slashable action. |
+| 时间 | 理想情况下一个时隙，一般情况下不到一分钟。| 通常需要至少两个时段/13分钟。|
+| 假设 | 网络保持同步直到最终确定。| 不假设网络同步 |
+| 破坏 | 如果网络不保持同步，已确认的区块可以被重组。| 如果超过 $\frac{1}{3}$ 的验证者进行罚没性的行动，一个冲突区块也可以被最终确定。|
 
-The confirmation rule is not yet implemented in client software as I write, but should be available in due course via the [safe block](/part3/safe-block/) specification.
+在我写这篇文章的时候，客户端软件还没有实现确认规则，但应该会在适当的时候通过[安全区块](/part3/safe-block/)规范提供。
 
-#### Incentives in LMD GHOST
+#### LMD GHOST 中的激励
 
-One of the ways cryptoeconomic systems secure themselves is by rewarding good behaviour and penalising bad behaviour. In our implementation of LMD GHOST, both proposers and attesters are rewarded in different ways for accurately finding the head of the chain.
+加密经济系统保障自身安全的一种方式是奖励良好行为，惩罚不当行为。在我们对 LMD GHOST 的实现中，提议者和认证者都会因准确找到链头而以不同的方式获得奖励。
 
-The incentive for a block proposer to build on the best head is clear. If it doesn't, then there's a good chance that its block will not be included in the eventual canonical chain &ndash; it will be orphaned &ndash; in which case the proposer will not receive any of its block rewards. This is an implicit incentive rather than explicit; miners in proof of work are in a similar situation.
+对于区块提议者来说，在最佳头块上构建区块的激励是显而易见的。如果不这样做，那么它的区块很可能不会被最终的规范链包含——它将被孤立——在这种情况下，提议者将无法获得任何区块奖励。这是一种隐性激励而非显性激励；工作量证明中的矿工也处于类似的情况。
 
-By contrast, validators are directly rewarded for voting accurately. When a validator makes an accurate head vote, and its attestation is included in a block in the very next slot, it receives [a micro reward](/part2/incentives/rewards/#introduction). A perfectly performing validator will gain about 22% of its total protocol rewards from making accurate head votes. Proposers, in turn, are incentivised to include such attestations in blocks as they receive a proportionate micro, micro reward for each one they manage to get in.
+相比之下，验证者会因为准确投票而直接获得奖励。当验证者做出准确的头块投票，并且其认证被包含在下一个时隙的区块中，它会获得一个[微小奖励](/part2/incentives/rewards/#introduction)。一个表现完美的验证者大约会从准确的头块投票中获得其总协议奖励的 22%。提议者则被激励将这些认证包含在区块中，因为他们每成功加入一个验证，就能获得相应的微小奖励。
 
-A vote is accurate if it matches what ends up in the canonical chain. So if the validator voted for a block at the previous slot, and the canonical chain has a matching block there, then it receives its reward. If it voted for a block from a previous slot, indicating a skipped slot, and the canonical chain has skipped slots between that block and the present, then it will also receive its reward.
+如果投票结果与规范链中的最终结果一致，那么投票就是准确的。 因此，如果验证者投票给了前一个时隙中的一个区块，而规范链中有一个相匹配的区块，那么验证者就会得到奖励。 如果验证者投票支持的是前一个时隙之前的的区块，这表示跳过了一个时隙；而规范链在该区块和当前区块之间也跳过了一个时隙，那么验证者也将获得奖励。
 
-There is no penalty if a validator makes an inaccurate head vote, or their head vote is not included on chain within one slot. Getting the head vote right is difficult when the beacon chain is under stress, and there are late and missing blocks. This is often no fault of the validator itself, and it was felt unfair to penalise them in such circumstances.[^fn-head-block-penalty]
+如果某个验证者对头块的投票不准确，或其对头块的投票在一个时隙内未列入链中，则不会受到惩罚。 当信标链处于压力状态下，进行正确的头块投票时很难的，也会出现迟报和漏报区块。 这往往不是验证者本身的过错，在这种情况下对他们进行惩罚是不公平的。[^fn-head-block-penalty]
 
-[^fn-head-block-penalty]: The original Phase 0 specification [did have a penalty](https://benjaminion.xyz/eth2-annotated-spec/phase0/beacon-chain/#components-of-attestation-deltas) for a missed head vote. This was removed in the [Altair upgrade](/part4/history/altair/)'s accounting reforms.
+[^fn-head-block-penalty]: 最初的第 0 阶段规范确实包含对遗漏头块投票的[惩罚](https://benjaminion.xyz/eth2-annotated-spec/phase0/beacon-chain/#components-of-attestation-deltas)。 [Altair 升级](/part4/history/altair/)中的会计改革取消了这一惩罚。
 
-#### Slashing in LMD GHOST
+#### LMD GHOST 中的罚没
 
-One of the big breakthroughs in proof of stake design was the adoption of slashing as a way around the ["nothing at stake" problem](https://ethereum.stackexchange.com/questions/2402/what-exactly-is-the-nothing-at-stake-problem). The problem, in essence, is that under proof of stake it is almost costless for a validator to equivocate by publishing multiple contradictory messages.
+权益证明设计的一大突破是采用了罚没来解决“无利害关系”问题（["nothing at stake" problem](https://ethereum.stackexchange.com/questions/2402/what-exactly-is-the-nothing-at-stake-problem)）。 这个问题的实质是，在权益证明中，验证者通过发布多条相互矛盾的信息来模棱两可几乎是没有成本的。
 
-The solution turns out to be rather elegant. We detect when a validator has equivocated and punish it. The punishment is called ["slashing"](/part2/incentives/slashing/), and entails removing a proportion of the validator's stake, and ejecting the validator from the protocol. Since validators digitally sign their messages, finding two contradictory signed messages is absolute proof of misbehaviour, so we can slash with confidence.
+结果证明，这个解决方案相当优雅。 我们可以检测出验证者是否模棱两可，并对其进行惩罚。 这种惩罚被称为“罚没（[slashing](/part2/incentives/slashing/)）”，它会移除验证者一部分的质押，并将其逐出协议。 由于验证者会对自己的信息进行数字签名，因此发现两个相互矛盾的签名信息就是验证者不当行为的绝对证明，所以我们可以放心地“罚没”。
 
-The name "slashing" comes from Vitalik's [Slasher](https://blog.ethereum.org/2014/01/15/slasher-a-punitive-proof-of-stake-algorithm) algorithm from early 2014. That was a very early proposal for solving the nothing at stake problem. Our current design doesn't look much like Slasher, but some things have carried over, not least the name.
+“罚没”这个名字源自 Vitalik 在 2014 年初提出的 [Slasher](https://blog.ethereum.org/2014/01/15/slasher-a-punitive-proof-of-stake-algorithm) 算法。 那是为解决“无利害关系”问题的非常早期的提案。 目前的设计与 Slasher 不太相似，但有些东西还是沿用了下来，尤其是名字。
 
-##### Proposer slashing
+##### 提议者罚没 
 
-When it is a validator's turn to produce a block in a particular slot, the validator is supposed to run the [fork choice rule](/part2/consensus/preliminaries/#fork-choice-rules) in order to decide which existing block it will build its own block on. Its goal is to identify the fork that is most likely, based on the evidence it has, to be the one that eventually becomes canonical. That is, the one that the whole set of correct validators will converge on.
+当轮到某个验证者在特定时隙生成区块时，该验证者应该运行[分叉选择规则](/part2/consensus/preliminaries/#fork-choice-rules)，以决定在哪个现有区块的基础上构建自己的区块。 其目标是——根据所掌握的证据，确定最有可能成为最终规范的分叉。也就是说，正确验证者的集合将汇合在一起的那个分叉。
 
 <a id="img_consensus_nas_0"></a>
 <figure class="diagram" style="width: 70%">
@@ -937,12 +937,12 @@ When it is a validator's turn to produce a block in a particular slot, the valid
 
 <figcaption>
 
-The proposer of a block needs to choose which block to build on. The best strategy is to build on the block least likely to be reorged, as indicated by the fork choice rule.
+提议者需要选择在哪个区块上构建自己的区块。 根据分叉选择规则，最佳策略是在最不可能被重组的区块上构建新区块。
 
 </figcaption>
 </figure>
 
-However, why choose? Under proof of stake &ndash; unlike under proof of work &ndash; it is almost costless for validators to produce blocks. Therefore, a good strategy would seem to be to propose multiple blocks, one built on each possible head, then at least one of my blocks is guaranteed to become part of the eventual canonical chain.
+然而，为什么要选择呢？ 在权益证明下——与工作量证明不同——验证者生产区块几乎不需要成本。 因此，一个好的策略似乎是提议多个区块，每个区块建立在每个可能的头块之上，这样就能保证至少有一个区块能成为最终规范链的一部分。
 
 <a id="img_consensus_nas_1"></a>
 <figure class="diagram" style="width: 70%">
@@ -951,129 +951,128 @@ However, why choose? Under proof of stake &ndash; unlike under proof of work &nd
 
 <figcaption>
 
-In the absence of punishment, a lazy or dishonest proposer might choose to extend both sides of the fork.
+在没有惩罚的情况下，懒惰或不诚实的提议者可能会选择把同时拓展分叉的两边。
 
 </figcaption>
 </figure>
 
-This is undesirable because it prolongs any fork and prevents the network from converging on a linear history. Users of the chain may not be able to work out which fork is correct, and that makes them vulnerable to double spend attacks, the very thing we wish to avoid.
+这是不可取的，因为它会延长任何分叉，并阻止网络向线性历史汇聚。 链上用户可能无法确定哪个分叉是正确的，这就使他们容易受到双花攻击，而这正是我们希望避免的。 
 
-This illustrates the [nothing at stake problem](https://ethereum.stackexchange.com/questions/2402/what-exactly-is-the-nothing-at-stake-problem). As outlined above, the solution is to detect the two contradictory blocks and slash the validator that proposed them.
+这展示了“[无利害关系](https://ethereum.stackexchange.com/questions/2402/what-exactly-is-the-nothing-at-stake-problem)”问题。 如上所述，解决办法是检测出两个相互矛盾的区块，并罚没提议它们的验证者。
 
-Proposer equivocation is not detected in-protocol, but relies on a third-party constructing a proof of equivocation in the form of a [`ProposerSlashing`](/part3/containers/operations/#proposerslashing) object. The proof comprises just two signed beacon block headers: that's enough to prove that the proposer signed off on two blocks in the same slot. A subsequent block proposer will include the proof in a block (and be well rewarded for it), and the protocol will slash the offending validator's balance and eject it from the active validator set.
+提议者的模棱两可行为不会在协议内被检测到，而是依靠第三方以 [`ProposerSlashing`](/part3/containers/operations/#proposerslashing) 对象的形式构建模棱两可证明。该证明只包括两个已签名的信标区块头：这足以证明提议者在同一个时隙中签署了两个区块。 随后的区块提议者将在区块中纳入该证明（并因此获得丰厚奖励），协议将对违规验证者的余额进行罚没，并将其驱逐出活跃验证者的集合。
 
-##### Attester slashing
+##### 认证者罚没
 
-Similarly, when it is a validator's turn to publish an attestation, it is supposed to run its fork choice rule and vote for the head block that it thinks is best. The issue here is that an attacker could make multiple contradictory attestations in order to provoke or prolong forks and prevent the network from converging on a single chain. Even a mostly-honest validator might be tempted to make two attestations for a borderline late block: one voting for the block, one voting for an empty slot. If it weren't punishable behaviour, this would hedge the chance of voting the wrong way and missing out on a reward.
+同样，当轮到某个验证者发布认证时，验证者应该运行其分叉选择规则，并投票给它认为是最好的头块。这里的问题是，攻击者可能会做出多个相互矛盾的认证，以引起或延长分叉，阻止网络聚合成单一链。即使基本诚实的验证者也可能受到诱惑，为一个似晚非晚的区块做出两个认证：一个为该区块投票，一个为空时隙投票。如果这不是应受惩罚的行为，那么这样做就能避免因投错票而错失奖励的机会。
 
-The remedy is the same: detect and punish contradictory attestations. That is, attestations made in by the same validator in the same slot for different head blocks.
+纠正方法是一样的：检测并惩罚相互矛盾的认证——也就是同一验证者在同一时隙里为不同头块所做的认证。
 
-#### History
+#### 历史
 
-The LMD GHOST fork choice in Ethereum has its origin's in Vlad Zamfir's work on the Casper CBC protocol (then known as Casper TFG, and not to be confused with Casper FFG, which is something quite different[^fn-naming-in-ethereum]). The [initial announcement](https://blog.ethereum.org/2015/08/01/introducing-casper-friendly-ghost) of Casper TFG was in 2015, and in his 2017 [Casper the Friendly Ghost](https://raw.githubusercontent.com/vladzamfir/research/master/papers/CasperTFG/CasperTFG.pdf) paper, Zamfir describes combining Sompolinsky and Zohar's [GHOST](https://eprint.iacr.org/2013/881) protocol with a "latest message" construction.
+以太坊中的 LMD GHOST 分叉选择起源于 Vlad Zamfir 在 Casper CBC 协议（在那时被称为 Casper TFG，请不要与 Casper FFG 相混淆，后者相当不同[^fn-naming-in-ethereum]）上的工作。 Casper TFG [最初发布](https://blog.ethereum.org/2015/08/01/introducing-casper-friendly-ghost)于 2015 年，在 2017 年发表的鬼马小精灵 ([Casper the Friendly Ghost](https://raw.githubusercontent.com/vladzamfir/research/master/papers/CasperTFG/CasperTFG.pdf)) 论文中，Zamfir 描述了将 Sompolinsky 和 Zohar 的 [GHOST](https://eprint.iacr.org/2013/881) 协议与“最新消息”结构相结合的情况。
 
-[^fn-naming-in-ethereum]: Welcome to the joy of naming things in Ethereum.
+[^fn-naming-in-ethereum]：欢迎体验在以太坊里起名字的乐趣
 
-In August 2018, Vitalik [still favoured](https://web.archive.org/web/20230630135358/https://nitter.it/VitalikButerin/status/1029906887376961536#m) a fork choice called [IMD GHOST](https://ethresear.ch/t/immediate-message-driven-ghost-as-ffg-fork-choice-rule/2561?u=benjaminion) (formerly known as Recursive Proximity to Justification), that was more aware of finalisation and justification than the pure LMD GHOST that we have today. As the [Eth2 consensus mini-spec](https://ethresear.ch/t/beacon-chain-casper-mini-spec/2760?u=benjaminion) evolved, IMD GHOST was changed to LMD GHOST in November 2018[^fn-see-the-changes]. This was due to concerns about the [stability properties](https://ethresear.ch/t/beacon-chain-casper-mini-spec/2760/17?u=benjaminion) of IMD GHOST.
+在 2018 年 8 月，Vitalik [仍然倾向于](https://web.archive.org/web/20230630135358/https://nitter.it/VitalikButerin/status/1029906887376961536#m)一种名为 IMD GHOST（原名为“递归接近合理性”, Recursive Proximity to Justification）的分叉选择，它比如今纯粹的 LMD GHOST 更注重最终确定性与合理性。 随着 [Eth2 共识迷你规范](https://ethresear.ch/t/beacon-chain-casper-mini-spec/2760?u=benjaminion)的进展，IMD GHOST 于 2018 年 11 月[^fn-see-the-changes]更名为 LMD GHOST。 这是因为人们担心 IMD GHOST 的[稳定性能](https://ethresear.ch/t/beacon-chain-casper-mini-spec/2760/17?u=benjaminion)。
 
-[^fn-see-the-changes]: You can view the history of changes to the [mini-spec](https://ethresear.ch/t/beacon-chain-casper-mini-spec/2760?u=benjaminion) by clicking on the pencil icon near the title.
+[^fn-see-the-changes]：点击标题附近的铅笔图标，可以查看[迷你规范](https://ethresear.ch/t/beacon-chain-casper-mini-spec/2760?u=benjaminion)的历史更改记录。
 
-That November 2018 description of LMD GHOST in the [mini-spec](https://ethresear.ch/t/beacon-chain-casper-mini-spec/2760?u=benjaminion) is essentially what we are using today.
+2018 年 11 月[迷你规范](https://ethresear.ch/t/beacon-chain-casper-mini-spec/2760?u=benjaminion)中对 LMD GHOST 的描述基本上就是我们今天使用的版本。
 
-#### See also
+#### 另见
 
-Bear in mind that this section has covered only the pure form of LMD GHOST. In Ethereum's full consensus protocol, LMD GHOST is modified by being integrated with Casper FFG, as we shall see in the [Gasper](/part2/consensus/gasper/) section. It is also modified by [proposer boost](/part2/consensus/issues/#proposer-boost), which we shall also discuss later.
+请注意，本节只介绍了 LMD GHOST 的纯粹形式。在以太坊的完整共识协议中，通过与 Casper FFG 集成，LMD GHOST 被修改了，我们将在 [Gasper](/part2/consensus/gasper/) 部分了解到这一点。 它也被[提议者增强](/part2/consensus/issues/#proposer-boost)修改，我们稍后会讨论。
 
-The [fork choice](https://github.com/ethereum/consensus-specs/blob/v1.3.0/specs/phase0/fork-choice.md) document in the consensus specs repo contains the relevant specifications. They are covered in my annotated specification in the following places.
+共识规范仓库中的[分叉选择](https://github.com/ethereum/consensus-specs/blob/v1.3.0/specs/phase0/fork-choice.md)文档包含了相关规范。在我注解的规范中，它们被包含在以下几处。
 
-  - [`get_head()`](/part3/forkchoice/phase0/#get_head) is the entry point to the fork choice when we want to get an opinion on the best current head block.
-  - [`get_weight()`](/part3/forkchoice/phase0/#get_weight) is where the LMD GHOST algorithm is implemented.
-  - The [`on_attestation()`](/part3/forkchoice/phase0/#on_attestation) handler is where the fork choice learns about LMD GHOST votes.
-    - Validating those votes is mostly taken care of in [`validate_on_attestation()`](/part3/forkchoice/phase0/#validate_on_attestation).
-    - [`update_latest_messages()`](/part3/forkchoice/phase0/#update_latest_messages) takes care of the record keeping around latest messages.
+  - 当我们想获得当前最佳头块的信息时，[`get_head()`](/part3/forkchoice/phase0/#get_head) 是分叉选择的入口点。
+  - [`get_weight()`](/part3/forkchoice/phase0/#get_weight) 是对 LMD GHOST 算法的实现。
+  - The [`on_attestation()`](/part3/forkchoice/phase0/#on_attestation) 处理程序让分叉选择获得 LMD GHOST 的票数。
+    - 主要由 [`validate_on_attestation()`](/part3/forkchoice/phase0/#validate_on_attestation) 验证这些投票。
+    - [`update_latest_messages()`](/part3/forkchoice/phase0/#update_latest_messages) 负责保存最新信息的记录。
 
-The introduction to Vitalik's [annotated fork choice](https://github.com/ethereum/annotated-spec/blob/master/phase0/fork-choice.md) is an excellent overview (though some of the details in the spec itself are now outdated). The LMD GHOST part of Vitalik's [CBC Casper tutorial](https://vitalik.ca/general/2018/12/05/cbc_casper.html) has a nice explainer. Ignore the later stuff about finality in Casper CBC - that does not concern us.
+Vitalik [注解的分叉选择](https://github.com/ethereum/annotated-spec/blob/master/phase0/fork-choice.md)的引言部分是很好的概述（尽管规范本身的一些细节已经过时）。 Vitalik 的 [CBC Casper 教程](https://vitalik.ca/general/2018/12/05/cbc_casper.html)中的 LMD GHOST 部分也有精彩的解释。请忽略后面关于 Casper CBC 最终确定性的内容——这与我们无关。
 
-Some weaknesses of LMD GHOST as it is currently implemented in Ethereum are reviewed in the [RLMD GHOST](https://arxiv.org/pdf/2302.11326.pdf) paper. For example, LMD GHOST does not handle dynamic participation securely &ndash; that is, when large numbers of validators go offline &ndash; among other things. We will consider some of the issues [later](/part2/consensus/issues/), but the introduction to that paper is a good read if you want to get a head start.
+[RLMD GHOST](https://arxiv.org/pdf/2302.11326.pdf) 论文回顾了以太坊的 LMD GHOST 实现的一些弱点。 例如，当大量验证者离线时，LMD GHOST 无法安全地处理动态参与问题。 我们稍后会考虑其中一些议题，但如果你想先了解一下，可以阅读该论文的引言部分。
 
 ### Casper FFG <!-- /part2/consensus/casper_ffg/ -->
 
 <div class="summary">
 
-  - Casper FFG adds finality to the Eth2 consensus protocol.
-  - It acts as an overlay on LMD GHOST consensus that modifies its fork choice rule.
-  - Casper FFG is classically safe under asynchrony when less than $\frac{1}{3}$ of validators are faulty or adversarial.
-  - Moreover, slashing allows Casper FFG to provide accountable safety, also known as economic finality, when more than $\frac{1}{3}$ are adversarial.
+  - Casper FFG 为 Eth2 共识协议增加了最终确定性。
+  - 作为 LMD GHOST 共识的覆盖层，它修改了前者的分叉选择规则。
+  - 在异步条件下，当少于 $\frac{1}{3}$ 的验证者存在故障或是恶意时，Casper FFG 具有经典的安全性。
+  - 此外，当超过 $\frac{1}{3}$ 的验证者是敌对方时，Casper FFG 能够通过罚没机制来提供可问责的安全性，也被称为经济最终确定性。
 
 </div>
 
-#### Introduction
+#### 引言
 
-Many articles have been written to explain the basic mechanics of Casper FFG &ndash; _how_ it works &ndash; but there is very little about _why_ it works. I hope that by the end of this section you will feel that you have some insight into why Casper FFG is effective.
+已经有许多文章解释了 Casper FFG 的基本机制——它是如何工作的——但关于它为什么有效的文章却很少。我希望在本节结束时，你会对 Casper FFG 为何有效有所了解。
 
-The mechanics of Casper FFG are not very complicated. Even so, as you read on, bear in mind that the effectiveness of Casper FFG really comes down to two big ideas. First, the two-phase commit (justification and finalisation) and, second, accountable safety.
+Casper FFG 的机制并不复杂。即便如此，当你继续阅读时，请记住Casper FFG 的有效性实际归结于两个重要的概念。首先是两阶段承诺（合理性和最终确定性），其次是可问责的安全性。
 
-The two-phase commit gives Casper FFG classical consensus safety. It makes it possible to declare blocks final, being certain that no honest validator will ever revert them. But that's enforceable only when over two-thirds of the stake is controlled by honest validators, something we cannot always assume.
+两阶段承诺为 Casper FFG 提供了经典的共识安全性。它使得宣布区块为最终确定的区块成为可能，并确保诚实的验证者不会回滚它们。但这只有在超过三分之二的质押由诚实的验证者控制时才能实现，而我们并不能总是这样假设。
 
-On top of this, Casper FFG offers an extra guarantee called accountable safety for situations when over one-third of the validators are dishonest. If the chain ever suffers from conflicting finality, at least one-third of the total amount of staked Ether will be burnt. This is enforced by slashing validators that break either of the two Casper commandments.
+在此基础上，Casper FFG 为超过三分之一的验证者不诚实的情况提供了额外的保证，即“可问责的安全性”。如果链出现相冲突的最终确定性，至少会有三分之一的质押以太币会被销毁。如果验证者违反了 Casper 的两条戒律中的任何一条，销毁就会被强制执行。
 
-#### Overview
+#### 概述
 
-Casper FFG is a kind of meta-consensus protocol. It is an overlay that can be run on top of an underlying consensus protocol in order to add finality to it. Recall that [finality](/part2/consensus/preliminaries/#finality) is the property that there are blocks in the chain that are guaranteed never to be reverted: they will be part of the chain forever. In Ethereum's proof of stake consensus, the underlying protocol is [LMD GHOST](/part2/consensus/lmd_ghost/) which does not provide finality - there is always a chance that validators might decide to build a competing chain, and there is no real penalty for doing so. Casper FFG functions as a "finality gadget", and we use it to add finality to LMD GHOST.
+Casper FFG 是一种元共识协议。它是一个可以在底层共识协议之上运行的覆盖层，以便为其增加最终确定性。回想一下，[最终确定性](/part2/consensus/preliminaries/#finality)是指链中的有些区块永远不会被回滚：它们将永远是链的一部分。在以太坊的权益证明共识中，底层协议是 [LMD GHOST](/part2/consensus/lmd_ghost/)，它不提供最终确定性——总是存在验证者决定构建一个相竞争的链的可能性，而这么做也不会受到真正的惩罚。Casper FFG 作为一个“最终确定性小工具”，被用来为 LMD GHOST 增加最终确定性。
 
-Casper FFG takes advantage of the fact that, as a proof of stake protocol, we know who our participants are: the validators that manage the staked Ether. This means that we can use vote counting to judge when we have seen a majority of the votes of honest validators. More precisely, votes from validators managing a majority of the stake - in everything that follows, every validator's vote is weighted by the value of the stake that it manages, but for simplicity we won't spell it out every time.
+Casper FFG 利用了这一点——作为权益证明协议，我们知道谁是参与者：管理质押的以太币的验证者们。这意味着，我们可以通过计票来判断诚实验证者的票数是否占多数。更准确地说，是管理多数质押的验证者的投票——在接下来的所有内容中，每个验证者的投票都会根据其管理的质押的价值进行加权，但为了简单起见，我们不会每次都详细说明。
 
-We operate on an asynchronous network, the Internet, which means that we can tolerate at most $\frac{1}{3}$ of the validators being adversarial (or faulty) if we want to achieve both safety and liveness. This is a well-known result in consensus theory[^fn-bracha-toueg], and the reasoning goes as follows.
+我们在一个异步网络上运行，即互联网，这意味着如果想要同时实现安全性和活性，我们最多只能容忍 $\frac{1}{3}$ 的验证者是敌对的（或有故障的）。这是共识理论中一个众所周知的结果[^fn-bracha-toueg], 其推理如下。
 
-  - We have a total of $n$ validators, of which a number, $f$, may be faulty or adversarial in some way.
-  - To preserve liveness, we need to be able to make a decision after hearing from only $n - f$ validators, since the $f$ faulty ones might withhold their votes.
-  - But this is an asynchronous environment, so the $f$ non-responders may simply be delayed, and not faulty at all.
-  - Therefore we must account for up to $f$ of the $n - f$ responses we have received being from faulty or adversarial validators.
-  - To guarantee that we can always achieve a simple majority of honest validators after hearing from $n - f$ validators, we require that $(n - f)/2 > f$. That is, $n > 3f$.
+  - 总共有 $n$ 个验证者，其中一些数量的验证者 $f$ 可能以某种方式发生故障或与我们为敌。
+  - 为了保持活性，我们需要在只听到 $n - f$ 个验证者的情况下做出决定，因为 $f$ 个存在故障的验证者可能会保留他们的投票。
+  - 但这是一个异步环境，所以 $f$ 个未响应者可能只是出于延迟，而没有发生故障。
+  - 因此，在我们收到的 $n - f$ 个响应中，最多有 $f$ 个响应可能来自故障或敌对的验证者。
+  - 为了保证我们在听到 $n - f$ 个验证者后总是能够达到诚实验证者的简单多数，需要 $(n - f)/2 > f$。也就是说， $n > 3f$。
 
-[^fn-bracha-toueg]: See, for example, the paper [Asynchronous consensus and broadcast protocols](https://dl.acm.org/doi/10.1145/4221.214134) (1985) by Bracha and Toueg. The earlier work [Reaching Agreement in the Presence of Faults](https://lamport.azurewebsites.net/pubs/reaching.pdf) (1980) by Pease, Shostak and Lamport gives the same bound, but is based on synchronous communications in a system where validators can forge messages. Our environment is asynchronous with unforgeable messages, so Bracha and Toueg's analysis is the relevant one.
+[^fn-bracha-toueg]: 例如，请参阅 Bracha 和 Toueg 的论文《异步共识与广播协议》（[Asynchronous consensus and broadcast protocols](https://dl.acm.org/doi/10.1145/4221.214134)）(1985)。 Pease、Shostak 和 Lamport 的早期著作 《在故障存在时达成一致》（[Reaching Agreement in the Presence of Faults](https://lamport.azurewebsites.net/pubs/reaching.pdf)）（1980）给出了相同的约束，但它是基于在验证者可以伪造信息的系统中的同步通信。我们的环境是异步的，信息是不可伪造的，因此与 Bracha 和 Toueg 的分析相关。
 
-To summarise, like all classical Byzantine fault tolerant (BFT) protocols, Casper FFG is able to provide finality when less than one-third of the total validator set is faulty or adversarial. When sufficient honest validators have declared a block finalised, all honest validators will follow, and that block will not be reverted. However, as we shall see, unlike classical BFT protocols, Casper FFG is also able to provide economic finality (accountable safety) even when more than one-third of the validator set is faulty or adversarial.
+总结来说，像所有经典的拜占庭容错（BFT）协议一样，当总体的验证者集中少于三分之一存在故障或与链相敌对时，Casper FFG 能够提供最终确定性。当足够多的诚实验证者宣布一个区块被最终确定时，所有诚实的验证者都会跟进，那个区块将不会被回滚。然而，正如我们将看到的，与经典的 BFT 协议不同，即使超过三分之一的验证者集存在故障与链相敌对，Casper FFG 也能够提供经济最终确定性（可问责的安全性）。
 
-In this section, we will consider Casper FFG on its own terms, without spending much time on how it is integrated with LMD GHOST. This is in the spirit of the [Casper FFG paper](https://arxiv.org/pdf/1710.09437.pdf) which has very little to say about the underlying blockchain consensus mechanism. We will look at how the two are combined into Gasper in [the next section](/part2/consensus/gasper/).
+在这一节中，我们将只考虑 Casper FFG，而不会花太多时间讨论它与 LMD GHOST 如何集成。这符合 [Casper FFG 论文](https://arxiv.org/pdf/1710.09437.pdf)的精神，该论文很少涉及底层区块链共识机制。我们将在[下一节](/part2/consensus/gasper/)中看看这两者是如何结合而成 Gasper。
 
-#### Naming
+#### 命名
 
-Once again, the name Casper FFG comprises two parts, and it's worth looking at them both.
+重复一下：Casper FFG 这个名字由两部分组成，两部分都值得一看。
 
 ##### Casper
+名字中的 Casper 似乎是 Vlad Zamfir 起的。 他在《Casper 历史》的[第 5 部分](https://medium.com/@Vlad_Zamfir/the-history-of-casper-chapter-5-8652959cef58)中这样解释。 
 
-The Casper part of the name seems to be due to Vlad Zamfir. He explains in [Part 5](https://medium.com/@Vlad_Zamfir/the-history-of-casper-chapter-5-8652959cef58) of his History of Casper as follows.
-
-> In this chapter I recount the story of Casper’s birth as an application of the principles of Aviv Zohar and Jonatan Sompolinsky’s GHOST to proof-of-stake.
+> 在这一章中，我讲述了 Casper 的诞生故事，它是 Aviv Zohar 和 Jonatan Sompolinsky 的 GHOST 原则在权益证明中的应用。
 >
-> I called it "the friendly ghost" because of incentives designed to guarantee censorship resistance against the oligopolists: incentives that force the cartel to be friendly to non-cartel validators.
+> 之所以称它为“友好的幽灵”，是因为设计了一些激励机制，以确保对寡头垄断者的审查抵抗：这些激励迫使垄断集团友好对待非垄断集团中的验证者。
 
-The GHOST protocol he mentions is the same as we looked at in the [previous section](/part2/consensus/lmd_ghost/#ghost). It helps to make sense of all this if you share the cultural context that Casper the Friendly Ghost is a cartoon character that's been around [since the 1940s](https://en.wikipedia.org/wiki/Casper_the_Friendly_Ghost).
+他提到的 GHOST 协议与我们在[上一节](/part2/consensus/lmd_ghost/#ghost)中提到的相同。如果你知道这个文化背景——“鬼马小精灵”是一个自 [20 世纪 40 年代](https://en.wikipedia.org/wiki/Casper_the_Friendly_Ghost)以来就一直存在的卡通人物——就会有助于理解这一切。
 
-Zamfir's protocol was initially called Casper TFG (The Friendly Ghost), and later renamed Casper CBC (Correct By Construction). Vitalik's Casper FFG grew up alongside Zamfir's Casper TFG/CBC &ndash; which presumably explains the naming synergy &ndash; but has very little in common with it. Indeed, Casper FFG doesn't even use the GHOST protocol.[^fn-casper-confusion]
+Zamfir 的协议最初被称为 Casper TFG（The Friendly Ghost，友好的幽灵），后来更名为 Casper CBC（Correct By Construction）。 Vitalik 的 Casper FFG 与扎姆菲尔的 Casper TFG/CBC 一起成长，这大概可以解释在命名上的一致，但两者间的共同点很少。 事实上，Casper FFG 甚至没有使用 GHOST 协议。[^fn-casper-confusion]
 
-[^fn-casper-confusion]: This is, of course, quite confusing. But it's very far from being the most confusing thing in Ethereum naming, so we just live with it.
+[^fn-casper-confusion]：当然，这让人很摸不着头脑。但它远不是以太坊的命名中最令人困惑的地方，所以我们就接受它。
 
 ##### FFG
 
-The FFG part stands for the "Friendly Finality Gadget", as in the title of the [Casper FFG paper](https://arxiv.org/pdf/1710.09437.pdf).
+FFG 代表 “友好的最终确定性小工具（Friendly Finality Gadget）”，正如 [Casper FFG 论文](https://arxiv.org/pdf/1710.09437.pdf)的标题。
 
-This is clearly a play on Zamfir's TFG name, but also indicates that Casper FFG is not a fully self-contained blockchain protocol, but a "gadget" than can add finality to an underlying consensus protocol.
+这显然是对 Zamfir 的 TFG 名字的戏仿，但也表明 Casper FFG 不是一个完全自成一体的区块链协议，而是一个可以为底层共识协议增加最终确定性的“小工具（gadget）”。
 
-#### Terminology
+#### 术语
 
-As ever, the jargon that we use is the way into understanding how the protocol is constructed.
+如往常一样，我们使用的行话是理解协议如何构建的途径。
 
-##### Epochs and checkpoints
+##### 时段与检查点
 
-In order to come to a decision about finality, the Casper FFG mechanism needs to process votes from at least $\frac{2}{3}$ of the validator set. In Ethereum, the validator set is potentially very large, and it is infeasible for votes from several hundred thousand validators to be broadcast, gossiped, and processed simultaneously.
+为了就最终确定性做出决定，Casper FFG 机制需要至少处理验证者集投票的 $\frac{2}{3}$。在以太坊中，验证者集可能非常庞大，同时广播、传递流言和处理数十万验证者的投票是不可行的。
 
-To work around this, voting is spread out through the duration of an epoch[^fn-epoch-dynasty], which, in Eth2, is 32 slots of 12 seconds each. At each slot, $\frac{1}{32}$ of the total validator set is scheduled to broadcast a vote, so each validator is scheduled to cast a vote exactly once per epoch. For efficiency, we bundle each validator's Casper FFG vote with its LMD GHOST vote, although that's by no means necessary.
+为了解决这个问题，投票分布在一整个时段[^fn-epoch-dynasty]中。在 Eth2 中，一个时段包括 32 个时隙，每个时隙 12 秒。在每个时隙中，总验证者集的 $\frac{1}{32}$ 被安排进行投票，因此每个验证者在每个时段恰好投票一次。为了提高效率，我们将每个验证者的 Casper FFG 投票与其 LMD GHOST 投票捆绑在一起，尽管这并非必要。
 
-[^fn-epoch-dynasty]: The Casper FFG paper generally uses the word "dynasty" for epoch, with a few exceptions. It's the same thing.
+[^fn-epoch-dynasty]: Casper FFG 论文一般用“王朝（dynasty）”一词表示时段，但也有少数例外。两者是同一个意思。
 
-To ensure that validators voting at different times during the epoch have something in common to vote for, we make them vote for a checkpoint, which is the first slot of an epoch. The checkpoint in epoch $N$ is at slot number $32N$ (remembering that slots and epochs are numbered from zero).
+为了确保在某个时段的不同时间投票的验证者有共同的投票目标，我们让他们为检查点投票，即该时段的第一个时隙。时段 $N$ 的检查点在 $32N$ 号时隙（记住时隙和时段的编号从 0 开始）。
 
 <a id="img_consensus_slots_epochs_checkpoints"></a>
 <figure class="diagram" style="width: 90%">
@@ -1082,16 +1081,16 @@ To ensure that validators voting at different times during the epoch have someth
 
 <figcaption>
 
-An epoch is divided into 32 slots, each of which usually contains a block. The first slot of an epoch is its checkpoint. Time increases from left to right.
+一个时段被分为 32 时隙，每个时隙通常包含一个区块。某时段的第一个时隙是它的检查点。时间从左到右增加。
 
 </figcaption>
 </figure>
 
-As an aside, people often talk lazily of finalising epochs, but that's not correct. Casper FFG finalises checkpoints, the first slots of epochs. When we have finalised the checkpoint in epoch $N$, we have finalised everything up to and including slot $32N$. This includes all of epoch $N-1$ and the first slot of epoch $N$. But we have not yet finalised epoch $N$ - it still has 31 unfinalised slots in it.
+顺便说一句，人们常常潦草地说是对时段的最终确定，但这么说不对。Casper FFG 对检查点（即该时段第一个时隙）进行最终确定。当我们对时段 $N$ 的检查点进行了最终确定时，我们就对包括 $32N$ 号时隙在内的一切进行了最终确定。这包括时段 $N-1$ 和时段 $N$ 的第一个时隙。但我们还没有对时段 $N$ 进行最终确定——它还有 31 个未被最终确定的时隙。
 
-For the time-being we will assume that every slot has a block in it. This is because the original Casper FFG's checkpoints are based on block heights rather than slot numbers. We will relax this assumption to allow empty slots and checkpoints when we look at [Gasper](/part2/consensus/gasper/).
+我们将暂时假设每个时隙中都有一个区块。这是因为最初的 Casper FFG 检查点是基于区块高度而不是时隙编号。我们将在探讨 [Gasper](/part2/consensus/gasper/) 时放宽这一假设，以允许空时隙和检查点。
 
-Within the protocol, a [`Checkpoint`](/part3/containers/dependencies/#checkpoint) object simply contains the epoch number of the checkpoint, and the hash tree root of the head block in the epoch's first slot (`root`):
+在协议中，检查点（[`Checkpoint`](/part3/containers/dependencies/#checkpoint)）对象只包含检查点的时段编号和该时段第一个时隙中的头块的哈希树根（`root`）:
 
 ```python
 class Checkpoint(Container):
@@ -1099,28 +1098,28 @@ class Checkpoint(Container):
     root: Root
 ```
 
-##### Justification and finalisation
+##### 合理性和最终确定性
 
-Like classical BFT consensus protocols, Casper FFG achieves finality through a two-round process.
+像经典的拜占庭容错（BFT）共识协议一样，Casper FFG 通过两轮过程实现最终确定性。
 
-In the first round, I broadcast my view of the current epoch's checkpoint ($X$, say) to rest of the network, and I hear from the rest of the network what their view is. If a supermajority tells me that they also support $X$, that allows me to _justify_ it. Justification is local to my network view: at this stage, I believe that the majority of the network believes that $X$ is favourable for finalisation. But I don't yet know that the rest of the network has come to the same conclusion. Under adversarial conditions, it is possible that a sufficient majority of the other validators failed to come to a decision on $X$. We shall look at such a scenario [later](#conflicting-justification).
+在第一轮中，我将当前时段检查点 (比如说 $X$) 的视图广播给网络的其余部分，并听取它们的视图。如果绝对多数告诉我他们也支持 $X$，这就使我认可它的合理性。合理性是我对网络视图的本地判断：在这个阶段，我认为大多数网络成员认为 $X$ 会被最终确定。但我还不知道网络的其余部分是否得出了相同的结论。在敌对的条件下，可能会有足够多数的其他验证者未能就 $X$ 做出决定。我们[稍后](#conflicting-justification)会讨论这种情况。
 
-In the second round, I broadcast the fact that I've heard from a supermajority of validators that they support $X$ (that is, that I've justified $X$) and I hear from the rest of the network whether they believe that a supermajority of validators supports $X$ (that is, that they have justified $X$). If I hear that a supermajority of validators agrees with me that $X$ is justified, then I will _finalise_ $X$. Finalisation is a global property: once a checkpoint is finalised, I know that no honest validator will ever revert it. Even if they haven't yet marked the checkpoint as finalised in their view, I know that they've at least marked it justified, and that there is no (non-slashable) behaviour that will be able to revert that justification.
+在第二轮中，我会广播我已经从绝对多数的验证者那里得知他们支持 $X$（即我已经证明了 $X$ 的合理性），以及我从网络其他成员那里得知他们是否认为绝对多数验证者支持 $X$（即，网络中其它成员已证明的 $X$ 合理性）。 如果我听到绝对多数验证者都同意我，认为 $X$ 具有合理性，那么我就会最终确定 $X$。 最终确定性是一个全局属性：一旦一个检查点被最终确定，我就知道任何诚实的验证者都不会回滚它。 即使他们的视图中，检查点还没有被标记为最终确定，我也知道他们至少已经将其标记为具有合理性，且没有任何（非罚没性的）行为能回滚（撤销）这一合理性。
 
-To summarise, for me to be absolutely certain that the whole network agrees that a block will not be reverted requires the following steps.[^pbft-prepare-commit]
+总结一下，要确保整个网络都同意某个区块不会被回滚，需要以下步骤：[^pbft-prepare-commit]
 
-  1. Round 1 (ideally leading to justification):
-     1. I tell the network what I think is the best checkpoint.
-     2. I hear from the network what all the other validators think is the best checkpoint.
-     3. If I hear that $\frac{2}{3}$ of the validators agree with me, I justify the checkpoint.
-  2. Round 2 (ideally leading to finalisation):
-     1. I tell the network my justified checkpoint, the collective view I gained from round 1.
-     2. I hear from the network what all the other validators think the collective view is, their justified checkpoints.
-     3. If I hear that $\frac{2}{3}$ of the validators agree with me, I finalise the checkpoint.
+  1. 第一轮（理想情况下带来合理性）：
+     1. 我将我所认为的最佳检查点告诉网络。
+     2. 我从网络中听取所有其他验证者认为的最佳检查点。
+     3. 如果我听到 $\frac{2}{3}$ 和我的想法一致, 我会将合理性赋予该检查点。
+  2. 第二轮（理想情况下带来最终确定性）：
+     1. 我将我的合理性检查点告知网络，即我从第一轮中获得的集体视图。
+     2. 我从网络中听取所有其他验证者认为的集体视图，即合理性检查点。
+     3. 如果我听到 $\frac{2}{3}$ 的验证者同意我的选择，我就会最终确定这个检查点。
 
-[^pbft-prepare-commit]: The two rounds map roughly onto the `PREPARE` and `COMMIT` phases of [classical PBFT](https://www.scs.stanford.edu/nyu/03sp/sched/bfs.pdf) consensus. The `PRE-PREPARE` phase of PBFT more or less corresponds to a checkpoint block being broadcast in Casper FFG.
+[^pbft-prepare-commit]: 在[经典 PBFT](https://www.scs.stanford.edu/nyu/03sp/sched/bfs.pdf) 共识协议中，这两轮大致对应于 `PREPARE` 和 `COMMIT` 两阶段。PBFT 的 `PRE-PREPARE` 阶段则相当于在 Casper FFG 中广播检查点区块。
 
-In short, when I justify a checkpoint I make a commitment never to revert it. When I finalise a checkpoint I know that all honest validators are committed to never reverting it.
+简言之，当我合理化某个检查点时，我承诺永不撤销它。当我最终确定某个检查点时，我知道所有诚实的验证者也承诺永不撤销它。
 
 <a id="img_consensus_two_rounds"></a>
 <figure class="diagram" style="width: 95%">
@@ -1129,22 +1128,22 @@ In short, when I justify a checkpoint I make a commitment never to revert it. Wh
 
 <figcaption>
 
-In Round 1, I broadcast my best checkpoint and hear from all the others their best checkpoint. Ideally this leads to justification. In Round 2, I broadcast what I heard everyone's best checkpoint to be and hear their views. Ideally this leads to finalisation.
+在第一轮中，我广播我的最佳检查点并听取其他所有人的最佳检查点。理想情况下，这将带来合理性。在第二轮中，我广播我听到的每个人的最佳检查点，并听取他们的视图。理想情况下，这将带来最终确定性。
 
 </figcaption>
 </figure>
 
-Under ideal conditions, each round lasts an epoch, so it takes an epoch to justify a checkpoint and a further epoch to finalise a checkpoint. At the start of epoch $N$ we are aiming to have justified checkpoint $N-1$ and to have finalised checkpoint $N-2$.
+在理想条件下，每轮持续一个时段，因此需要一个时段来合理化一个检查点，另一个时段来最终确认一个检查点。在第 $N$ 个时段开始时，我们想要看到第 $N-1$ 个检查点已经被合理化，第 $N-2$ 个检查点已被最终确定。
 
-Quantifying that, it takes 12.8 minutes, two epochs, to finalise a checkpoint in-protocol. In Casper FFG, the two rounds are overlapped and pipelined, so that, although it takes 12.8 minutes from end to end to finalise a checkpoint, we can finalise a checkpoint every 6.4 minutes, once per epoch.
+从量化来看，在协议中，最终确认一个检查点需要 12.8 分钟，即两个时段。在 Casper FFG 中，这两轮是重叠和流水线式进行的，因此，尽管需要 12.8 分钟来完整地最终确定一个检查点，但我们可以每 6.4 分钟就最终确认一个检查点，即每个时段一次。
 
-Note that it can be possible from outside the protocol to see that a checkpoint is likely to be finalised a little earlier than the full 12.8 minutes, assuming that there is no long chain reorg. Specifically, it is possible to have collected enough votes by $\frac{2}{3}$ of the way through the second round, that is after about 11 minutes. However, in-protocol justification and finalisation is done only during end of epoch processing.
+需要注意的是，在协议外部，可能会稍早于完整的 12.8 分钟就看到某个检查点被最终确认，假设没有长链重组的话。具体来说，在第二轮进行到大约 11 分钟后，可能已经收集到足够的票数，这相当于整个过程的 $\frac{2}{3}$。然而，在协议内部，合理性和最终确定性只在时段处理的末尾时进行。
 
-An aside on the nomenclature: the terms "finalised" and "justified" do not appear in the classical consensus literature. It's easy to see where "finalised" comes from, but perhaps not so for "justified", which is frankly a peculiar term to be using here. As far as I can tell, its origins are in Vlad Zamfir's [Casper TFG](https://github.com/vladzamfir/research/blob/master/papers/CasperTFG/CasperTFG.pdf) protocol. In that work, messages contain a "justification" to support the vote being made. The paper doesn't use the word "justified" anywhere, but I suspect that's where we got it from. In Casper FFG, my "justfication" is having seen evidence that $\frac{2}{3}$ of validators like the same checkpoint as I do.
+关于命名：术语“最终确定”和“合理化”并不出现在经典的共识文献中。可以很容易理解“最终确定”，但“合理化”这个术语可能有点奇怪。据我所知，其起源在 Vlad Zamfir 的 [Casper TFG](https://github.com/vladzamfir/research/blob/master/papers/CasperTFG/CasperTFG.pdf) 协议中。在那个作品中，消息包含一个“合理性（justification）”，以支持所做的投票。该论文中并没有使用“合理化（justified）”这个词，但我怀疑来源就是这个地方。在 Casper FFG 中，我的“合理性”是指看到我与 $\frac{2}{3}$ 的验证者认可同一个检查点的证据。
 
-##### Sources and targets, links and conflicts
+##### 来源和目标、链接和冲突
 
-A vote in Casper FFG has two parts: a _source_ checkpoint vote and a _target_ checkpoint vote. These are the `source` and `target` fields in an attestation's [data](/part3/containers/dependencies/#attestationdata):
+在 Casper FFG 中，一次投票包含两部分：一个来源（source）检查点投票和一个目标（target）检查点投票。这些分别是认证的[数据](/part3/containers/dependencies/#attestationdata)中的 `source` 和 `target` 字段：
 
 ```python
 class AttestationData(Container):
@@ -1157,11 +1156,11 @@ class AttestationData(Container):
     target: Checkpoint
 ```
 
-Source and target votes are made simultaneously in the form of a _link_ ${s \rightarrow t}$, where $s$ is the source checkpoint and $t$ is the target checkpoint.
+以一个链接（link）${s \rightarrow t}$ 的形式，来源和目标投票同时进行，其中 $s$ 是来源检查点，$t$ 是目标检查点。
 
-The role of my target vote is to broadcast my view of what the I think should be the next checkpoint to be justified. In the terms above, it is my round 1 vote. My target vote is a soft (conditional) commitment not to revert that checkpoint as long as I hear from $\frac{2}{3}$ of validators that they also commit to that checkpoint.
+我的目标投票的作用是广播我认为下一个应该被合理化的检查点。在上述术语中，这是我的第一轮投票。我的目标投票是一个软（有条件的）承诺，只要我听到 $\frac{2}{3}$ 的验证者也承诺不回滚该检查点，我就不会回滚它。
 
-The role of my source vote is to broadcast that I've seen support from $\frac{2}{3}$ of the network for checkpoint $s$, and that it is the most recent such checkpoint that I know about. In the terms above, it is my round 2 vote announcing the collective view that I've heard. By making this source vote I am upgrading my previous soft commitment not to revert the checkpoint to a hard (unconditional) commitment never to revert it.
+我的来源投票的作用是去广播我看到网络中 $\frac{2}{3}$ 的成员支持检查点 $s$，并且这是我所知道的最近的此类检查点。在上述术语中，这是我的第二轮投票，宣布我听到的集体视图。通过进行来源投票，我将之前的软承诺升级为硬（无条件的）承诺：永不回滚该检查点。
 
 <a id="img_consensus_ffg_vote"></a>
 <figure class="diagram" style="width: 50%">
@@ -1170,12 +1169,12 @@ The role of my source vote is to broadcast that I've seen support from $\frac{2}
 
 <figcaption>
 
-Casper FFG combines the source and target votes into a single message: a vote for a link ${s \rightarrow t}$.
+Casper FFG 将来源和目标投票合并为一条信息：一个链接 ${s \rightarrow t}$ 的投票。
 
 </figcaption>
 </figure>
 
-An honest validator's source vote will always be the highest justified checkpoint in its view of the chain. Its target vote will be the checkpoint of the current epoch that descends from the source checkpoint. The source and the target checkpoints do not need to be consecutive; it is permissible to jump checkpoints. But when the beacon chain is running smoothly, the target vote of one epoch will be the source vote of the next epoch.
+诚实验证者的来源投票将始终是其对链的视图中最高的合理化检查点。其目标投票将是自来源检查点以降当前时段的检查点。来源和目标检查点不需要是连续的；允许跳过检查点。但当信标链流畅顺利时，一个时段的目标投票将是下一个时段的来源投票。
 
 <a id="img_consensus_source_target"></a>
 <figure class="diagram" style="width: 50%">
@@ -1184,14 +1183,14 @@ An honest validator's source vote will always be the highest justified checkpoin
 
 <figcaption>
 
-A link from a justified checkpoint to a checkpoint on a chain that descends from it is valid. Only checkpoints are shown here; the intermediate blocks have been omitted for clarity.
+从已合理化的检查点到由它衍生的链上检查点的链接是有效的。这里只显示了检查点；中间的区块为了清晰性而被省略。
 
 </figcaption>
 </figure>
 
-In a valid link, the source checkpoint will always be an ancestor of the target checkpoint. If it weren't so, I'd be contradicting myself: the source vote announces my commitment never to revert checkpoint $s$; if the target checkpoint $t$ is not descended from $s$ then that would be a vote to revert $s$. However, it is not a slashable offence to publish such an invalid link[^fn-conflicting-link-slashable].
+在一个有效链接中，来源检查点始终是目标检查点的祖先。如果不是这样，我就会自相矛盾：来源投票宣布了我永不回滚检查点 $s$ 的承诺；如果目标检查点 $t$ 不是从 $s$ 派生的，那么这个投票将回滚 $s$。然而，发布这样一个无效链接并不是可被罚没的行为[^fn-conflicting-link-slashable]。
 
-[^fn-conflicting-link-slashable]: It was a slashable offence to link conflicting checkpoints in [earlier versions](https://medium.com/@VitalikButerin/minimal-slashing-conditions-20f0b500fc6c) of Casper FFG, but this was simplified in the Casper FFG design we use today, as per footnote 4 of the [Casper FFG paper](https://arxiv.org/pdf/1710.09437.pdf).
+[^fn-conflicting-link-slashable]: 在[早期版本](https://medium.com/@VitalikButerin/minimal-slashing-conditions-20f0b500fc6c)的 Casper FFG 中，链接相冲突的检查点是可被罚没的行为，但在我们今天使用的 Casper FFG 设计中，这一规定已被简化，如[Casper FFG 论文](https://arxiv.org/pdf/1710.09437.pdf)的脚注 4 所述。
 
 <a id="img_consensus_conflict"></a>
 <figure class="diagram" style="width: 50%">
@@ -1200,30 +1199,32 @@ In a valid link, the source checkpoint will always be an ancestor of the target 
 
 <figcaption>
 
-A link from a justified checkpoint to a checkpoint on a chain that does not descend from it is invalid. The two checkpoints are said to be _conflicting_ as neither descends from the other.
+将已合理化的检查点与不是它的后代的链的检查点相链接是无效的。这两个检查点被称为相冲突（conflicting），因为它们互不是对方后代。
 
 </figcaption>
 </figure>
 
-There are some specific criteria around timeliness that valid Casper FFG votes must satisfy in the Eth2 implementation. We'll discuss these more in the [Gasper section](/part2/consensus/gasper/) as they don't apply to the abstract Casper FFG protocol that we're considering here.
+在 Eth2 的实现中，有一些关于及时性的具体标准，有效的 Casper FFG 投票必须满足这些标准。我们将在 [Gasper 部分](/part2/consensus/gasper/)中详细讨论这些标准，因为它们不适用于我们这里考虑的、抽象的 Casper FFG 协议。
 
-When weighing Casper FFG votes, only votes that have been received in blocks are considered. Unlike with LMD GHOST's fork choice, we do not consider any Casper FFG votes received solely via gossip, by carrier pigeon, or by any other means. This is because we must always have a common record of our decision making around finality, and the block history provides that common record. So, when I said above, "I tell the network", it's shorthand for saying that I broadcast an attestation that will be picked up by a block proposer and included in a block. And when I said, "I hear from the network", it's shorthand for saying that I processed the attestations included in a block.
+在权衡 Casper FFG 投票时，只有那些已被包含在区块中的投票会算数。与 LMD GHOST 的分叉选择不同，我们不会考虑通过流言协议、信鸽、或其他任何方式接收到的 Casper FFG 投票。这是因为我们必须始终有一个关于最终确定性的决策的共同记录，而区块历史提供了这个共同记录。所以，当我上面说“我告诉网络”时，这是说我在广播一个将被区块提议者接收并包含在区块中的认证。当我说“我从网络中听”时，这是说我处理了包含在区块中的认证。
 
-Also, allow me to reiterate that votes in Casper FFG are weighted according to validators' [effective balances](/part2/incentives/balances/). A vote from a validator with a 24 ETH effective balance carries 75% of the weight of a vote from a validator with a 32 ETH effective balance. I will frequently say things like, "the votes of two-thirds of the validators"; you should understand this as, "the votes of validators managing two-thirds of the stake".
+Also, allow me to reiterate that votes in Casper FFG are weighted according to validators' [effective balances]. A vote from a validator with a 24 ETH effective balance carries 75% of the weight of a vote from a validator with a 32 ETH effective balance. I will frequently say things like, "the votes of two-thirds of the validators"; you should understand this as, "the votes of validators managing two-thirds of the stake".
 
-##### Supermajority links
+此外，请允许我重申：Casper FFG 中的投票根据验证者的[有效余额](/part2/incentives/balances/)加权。一个有效余额为 24 个以太币的验证者的投票权重是一个有效余额为 32 个以太币的验证者的投票权重的 75%。我经常会说“三分之二的验证者的投票”；你应该理解为“管理了三分之二质押的验证者的投票”。
 
-As described above, a _link_ is a Casper FFG vote pair that links the source and target checkpoints, ${s \rightarrow t}$.
+##### 绝对多数链接
 
-A link ${s \rightarrow t}$ is a _supermajority link_ when over $\frac{2}{3}$ of the validators (weighted by stake) have published the same link (and had their votes included in blocks in a timely way).
+如上所述，链接（Link）是将来源和目标检查点连接起来的Casper FFG 投票对，即 ${s \rightarrow t}$。
 
-#### The mechanics of Casper FFG
+当超过 $\frac{2}{3}$ 的验证者（按权益加权）发布相同的链接（且他们的投票被及时包含在区块中）时，链接 ${s \rightarrow t}$ 就是一个绝对多数链接（upermajority link）。
 
-With (most of) the terminology and key concepts behind us, we can now look at how Casper FFG operates in detail. It is fairly straightforward.
+#### Casper FFG 的机制
 
-##### Justification
+在知道（大部分）术语和关键概念之后，我们现在可以详细了解 Casper FFG 的运作方式。它相当简单。
 
-When a node sees a supermajority link from justified checkpoint $c_1$ to checkpoint $c_2$, then it considers checkpoint $c_2$ to be _justified_.
+##### 合理性
+
+当一个节点看到一个从已被合理化的检查点 $c_1$ 到检查点 $c_2$ 的绝对多数链接时，该节点将认为检查点 $c_2$ 将被合理化。
 
 <a id="img_consensus_justified"></a>
 <figure class="diagram" style="width: 80%">
@@ -1232,18 +1233,18 @@ When a node sees a supermajority link from justified checkpoint $c_1$ to checkpo
 
 <figcaption>
 
-My node has seen a supermajority link ${C_N \rightarrow C_{N+2}}$, therefore I mark $C_{N+2}$ as justified. Justified checkpoints are hatched and marked with "J".
+我的节点看到了一个绝对多数链接：${C_N \rightarrow C_{N+2}}$。因此我将 $C_{N+2}$ 标记为已被合理化。已被合理化的检查点有阴影覆盖，并用 “J” 标记。
 
 </figcaption>
 </figure>
 
-Justification means that I have seen commitments from over $\frac{2}{3}$ of the validator set that they will not revert checkpoint $c_2$ as long as they get confirmation from at least $\frac{2}{3}$ of validators that also will not revert $c_2$.
+合理性意味着我已经看到验证者集里超过 $\frac{2}{3}$ 的验证者的承诺：如果她们得知至少 $\frac{2}{3}$ 的验证者确认不会回滚检查点 $c_2$，她们也不会回滚检查点 $c_2$。
 
-##### Finalisation
+##### 最终确定性
 
-When a node sees a supermajority link from justified checkpoint $c_1$ to checkpoint $c_2$, and checkpoint $c_2$ is a direct child checkpoint of $c_1$, then it considers checkpoint $c_1$ to be _finalised_.
+当某个节点看到从已被合理化的检查点 $c_1$ 到检查点 $c_2$ 的绝对多数链接，且检查点 $c_2$ 是 $c_1$ 的直接子检查点时，该节点就将认为检查点 $c_1$ 已被最终确定。
 
-In other words, a finalised checkpoint is a justified checkpoint whose direct child is justified.
+换句话说，一个被最终确定的检查点是一个已被合理化的检查点，且其直接子检查点也已被合理化。
 
 <a id="img_consensus_finalised"></a>
 <figure class="diagram" style="width: 80%">
@@ -1252,28 +1253,28 @@ In other words, a finalised checkpoint is a justified checkpoint whose direct ch
 
 <figcaption>
 
-My node has seen a supermajority link ${C_N \rightarrow C_{N+1}}$, therefore I mark $C_{N+1}$ as justified. Since $C_{N+1}$ is a direct child of $C_N$ in the checkpoint tree, I also make $C_N$ as finalised. Finalised checkpoints are cross-hatched and marked with "F".
+我的节点看到了一个绝对多数链接 ${C_N \rightarrow C_{N+1}}$，因此我将 $C_{N+1}$ 标记为已被合理化。在检查点树中，由于 $C_{N+1}$ 是 $C_N$ 的直接子检查点，我也将 $C_N$ 标记为被最终确定。被最终确定的检查点被相交叉的阴影覆盖，并标记为 “F”。
 
 </figcaption>
 </figure>
 
-Finalisation means that I have seen confirmation from over $\frac{2}{3}$ of the validators that they have seen commitments from over $\frac{2}{3}$ of the validators that they will not revert checkpoint $c_1$. Checkpoint $c_1$ cannot now be reverted without at least $\frac{1}{3}$ of validators provably changing their minds, and therefore getting slashed.
+最终确定性意味着我已经看到超过 $\frac{2}{3}$ 的验证者的确认，他们已经看到超过 $\frac{2}{3}$ 的验证者承诺不会撤销检查点 $c_1$。现在，检查点 $c_1$ 不能被撤销，除非根据证据得知至少 $\frac{1}{3}$ 的验证者改变了想法，并因此会被罚没。
 
-The above rule for finalising a checkpoint is the one described in the original Casper FFG paper. In practice we can use a slight generalisation of this rule, without affecting the [safety proof](#proof-of-accountable-safety). The generalisation is called [k-finality](#k-finality) and we will look at it a little later.
+上述最终确定检查点的规则是原始 Casper FFG 论文中描述过的那个。在实践中，我们可以轻微地泛化这一规则，而不影响安全性证明（[safety proof](#proof-of-accountable-safety)）。这种泛化称为 [k-最终确定性]（[k-finality](#k-finality)），我们稍后会讨论。
 
-##### The Casper commandments
+##### Casper 戒律
 
-In the Casper FFG paper, each checkpoint has a defined height: if $c$ is a checkpoint, then $h(c)$ is the height of that checkpoint. Checkpoint heights increase monotonically with distance from the genesis block.
+在那篇 Casper FFG 论文中，每个检查点都有一个被定义好的高度：如果 $c$ 是一个检查点，那么 $h(c)$ 就是该检查点的高度。检查点的高度随着它与创世区块的距离增加而单调递增。
 
-In the Eth2 implementation of Casper FFG, the checkpoint height is the checkpoint's epoch number: $h(c) = \texttt{c.epoch}$. Recall that a checkpoint comprises both a block hash and an epoch number. If either of these differs then the checkpoints are different.
+在以太坊 2.0 的 Casper FFG 实现中，检查点高度是检查点的时段编号：$h(c) = \texttt{c.epoch}$。请记住，一个检查点由一个区块哈希和一个时段编号组成。如果这两者中任何一个出现不同，检查点就不同。
 
-Casper FFG's proof of accountable safety relies on any validator that violates either of the following two rules, or "commandments", being slashed.
+Casper FFG 对可问责安全性的证明依赖于对任何违反以下两条规则或“戒律”的验证者的罚没。
 
-###### No double vote
+###### 不得重复投票
 
-**Commandment 1**: a validator must not publish distinct votes ${s_1 \rightarrow t_1}$ and ${s_2 \rightarrow t_2}$ such that $h(t_1) = h(t_2)$.
+**戒律一**: 验证者不得发布不同的投票 ${s_1 \rightarrow t_1}$ 和 ${s_2 \rightarrow t_2}$，使得 $h(t_1) = h(t_2)$。
 
-Simply put, a validator must make at most one vote for any target epoch.
+简单来说，验证者在任何目标时段中最多只能进行一次投票。
 
 <a id="img_consensus_commandment_1a"></a>
 <figure class="diagram" style="width: 60%">
@@ -1282,7 +1283,7 @@ Simply put, a validator must make at most one vote for any target epoch.
 
 <figcaption>
 
-One way to violate the no double vote rule: voting for the same target checkpoint from different source checkpoints: ${0 \rightarrow 3}$ and ${1 \rightarrow 3}$.
+违反不得重复投票规则的一种方式：投票具有不同的来源检查点和相同的目标检查点：${0 \rightarrow 3}$ 和 ${1 \rightarrow 3}$。
 
 </figcaption>
 </figure>
@@ -1294,16 +1295,16 @@ One way to violate the no double vote rule: voting for the same target checkpoin
 
 <figcaption>
 
-Another way to violate the no double vote rule: voting for different target checkpoints in the same epoch: ${0 \rightarrow 3}$ and ${0 \rightarrow 3'}$.
+违反不得重复投票规则的另一种方式：在同一时段中为不同的目标检查点投票：${0 \rightarrow 3}$ 和 ${0 \rightarrow 3'}$。
 
 </figcaption>
 </figure>
 
-###### No surround vote
+###### 无“环绕投票”
 
-**Commandment 2**: a validator must not publish distinct votes ${s_1 \rightarrow t_1}$ and ${s_2 \rightarrow t_2}$ such that $h(s_1) < h(s_2) < h(t_2) < h(t_1)$.
+**戒律二**: 验证者不得发布不同的投票 ${s_1 \rightarrow t_1}$ 和 ${s_2 \rightarrow t_2}$ 使得 $h(s_1) < h(s_2) < h(t_2) < h(t_1)$.
 
-That is, a validator must not make a vote such that its link either surrounds, or is surrounded by, a previous link it voted for.
+也就是说，验证者不得进行使其链接环绕（surround）先前的投票链接，或被其先前投票的链接所环绕的投票。
 
 <a id="img_consensus_commandment_2a"></a>
 <figure class="diagram" style="width: 60%">
@@ -1312,7 +1313,7 @@ That is, a validator must not make a vote such that its link either surrounds, o
 
 <figcaption>
 
-One way to violate the no surround vote rule: the link ${0 \rightarrow 3}$ surrounds the link ${1 \rightarrow 2}$.
+一种违反“无环绕投票”规则的方式：链接 ${0 \rightarrow 3}$ 环绕链接 ${1 \rightarrow 2}$。
 
 </figcaption>
 </figure>
@@ -1324,62 +1325,62 @@ One way to violate the no surround vote rule: the link ${0 \rightarrow 3}$ surro
 
 <figcaption>
 
-Another way to violate the no surround vote rule: again, the link ${0 \rightarrow 3}$ surrounds the link ${1 \rightarrow 2}$, albeit on different branches.
+另一种违反“无环绕投票”规则的方式：尽管在不同的分支上，链接 ${0 \rightarrow 3}$ 再次环绕链接 ${1 \rightarrow 2}$。
 
 </figcaption>
 </figure>
 
-##### Slashing
+##### 罚没
 
-Any validator that violates either of the Casper commandments is liable to being slashed. This means that some or all of its stake is removed and it is ejected from the validator set.
+违反其中任何一条 Casper 戒律的验证者将面临罚没。这意味其部分或全部质押将被移除，并被驱逐出验证者集合。
 
-Slashing underpins the accountable safety guarantee of Casper by putting a price on bad behaviour - specifically, behaviour that could lead to conflicting checkpoints being finalised. Slashing also [features](/part2/consensus/lmd_ghost/#slashing-in-lmd-ghost) in LMD GHOST, and the [Incentive Layer chapter](/part2/incentives/slashing/) has more information on the detailed mechanics of slashing.
+通过对不良行为定价，罚没支撑了 Casper 的可问责安全保证——特别是那些可能导致冲突检查点被最终确定的行为。LMD GHOST 中[也有](/part2/consensus/lmd_ghost/#slashing-in-lmd-ghost)罚没，而[激励层章节](/part2/incentives/slashing/)会有更多关于罚没详细机制的信息。
 
-Violations of the commandments are potentially difficult to detect in-protocol. In particular, detection of surround votes might require searching a substantial history of validators' previous votes[^fn-proto-surround-vote]. For this reason, we rely on external slashing detection services[^fn-slasher-implementations] to detect slashing condition violations and submit the evidence to block proposers. There needs to be only one such service on the network, as long as it is reliable. In practice we have more, but it is certainly not necessary for every node operator to run a slashing detector.
+在协议中对戒律的违反进行检测可能会有一定难度。特别是，检测环绕投票可能需要搜索验证者的大量投票历史[^fn-proto-surround-vote]。因此，我们依赖外部罚没检测服务来检测对罚没条件的违反，并将证据提交给区块提议者。网络中只需有一个可靠的此类服务即可。实际上我们有更多，但并非每个节点运营者都需要运行罚没检测器。
 
-Once evidence of breaking one of the commandments has been found, it is easy to prove on chain that the validator broke the rules. Validators sign every attestation they publish, so, given two conflicting attestations, it is [a simple matter](/part3/transition/block/#attester-slashings) to verify their signatures and show that the validator broke the rules in publishing them.
+一旦发现违反戒律的证据，就容易在链上证明验证者违反规则。验证者签署自己发布的每个认证，因此，如果有两个相冲突的认证，那么验证他们的签名并证明验证者发布它们时违反了规则就[轻而易举](/part3/transition/block/#attester-slashings)了。
 
-[^fn-proto-surround-vote]: See Protolambda's [`eth2-surround`](https://github.com/protolambda/eth2-surround) GitHub repo for some analysis of the challenges of finding surround votes.
+[^fn-proto-surround-vote]: 参见 Protolambda 的 [`eth2-surround`](https://github.com/protolambda/eth2-surround) GitHub 仓库，了解对找到环绕投票的所面临的挑战的分析。
 
-[^fn-slasher-implementations]: Slashing detection software has been created by the [Lighthouse team](https://lighthouse-book.sigmaprime.io/slasher.html) and the [Prysm team](https://docs.prylabs.network/docs/prysm-usage/slasher).
+[^fn-slasher-implementations]: [Lighthouse 团队](https://lighthouse-book.sigmaprime.io/slasher.html) 和 [Prysm 团队](https://docs.prylabs.network/docs/prysm-usage/slasher) 已经开发了罚没检测软件。 
 
-The protocol as it is presented in the Casper FFG paper assumes that, on proof of having violated a slashing condition, "the validator's entire deposit is taken away". We have implemented [a variation of this](/part2/incentives/slashing/#the-correlation-penalty) for Eth2 that scales the proportion of a validator's stake that is forfeit in proportion to total amount of stake slashed in a given period. If $\frac{1}{3}$ of all stake violated slashing conditions within a 36 day window, then the whole stake would be forfeit, as in the classic Casper FFG protocol. But if there were very few other slashings in the window, then almost no stake would be forfeit. This nicety does not change the Casper FFG guarantees in practice, at least since the [Bellatrix upgrade](/part4/history/bellatrix/) to the beacon chain gave the [`PROPORTIONAL_SLASHING_MULTIPLIER`](/part3/config/preset/#proportional_slashing_multiplier) constant its final value.
+在 Casper FFG 论文中的协议假设：在被证明违反罚没条件后，“验证者的全部存款将被没收”。我们在 Eth2 的实现是[它的一种变体](/part2/incentives/slashing/#the-correlation-penalty)：按照在特定期间被罚没的总质押去等比例缩放验证者被没收的质押。如果在 36 天内 $\frac{1}{3}$ 的总质押违反了惩罚条件，那么验证者的整个质押将被没收，类似于经典的 Casper FFG 协议。但如果在此期间内只有极少的其他罚没，那么几乎没有质押会被没收。这种细节在实践中并不改变 Casper FFG 的保证，至少自从 [Bellatrix 升级](/part4/history/bellatrix/) 后的信标链让 [`PROPORTIONAL_SLASHING_MULTIPLIER`](/part3/config/preset/#proportional_slashing_multiplier) 常量获得了最终值。
 
-##### Fork choice rule
+##### 分叉选择规则
 
-Casper FFG's fork choice rule takes the form of a modification to the underlying consensus mechanism's fork choice rule. From the Casper FFG paper, the underlying consensus mechanism must,
+Casper FFG 的分叉选择规则是对底层共识机制分叉选择规则的一种修改。根据 Casper FFG 论文，底层共识机制必须：
 
-> follow the chain containing the justified checkpoint of the greatest height.
+> 跟随包含了最高合理化检查点的链。
 
-The pure [LMD GHOST](/part2/consensus/lmd_ghost/) protocol always begins its search for the head block from the root of the chain, the genesis block. When modified by Casper FFG's fork choice rule, LMD GHOST will start its search for the head block from the highest justified checkpoint it knows about, and will ignore potential head blocks that do not descend from the highest justified checkpoint. We will discuss this more when we get to [Gasper](/part2/consensus/gasper/).
+纯 [LMD GHOST](/part2/consensus/lmd_ghost/) 协议总是从链的根部，即创世区块，开始搜索头块。当被 Casper FFG 的分叉选择规则修改时，LMD GHOST 将从其已知的最高合理化检查点开始搜索头块，并忽略不是从最高已证明检查点发展而来的潜在头块。我们将在 [Gasper](/part2/consensus/gasper/) 中进一步讨论这一点。
 
-This modification to the underlying consensus protocol's fork choice rule is what confers finality. When a node has justified a checkpoint in its local view, it is committed to never reverting it. Therefore, the underlying chain must always include that checkpoint; all branches that do not include that checkpoint must be ignored.
+对底层共识协议分叉选择规则的这一修改赋予了最终确定性。当一个节点在其本地视图中合理化一个检查点时，它在承诺永远不会回滚该检查点。因此，基础的链必须始终包含该检查点；所有不包含该检查点的分支必须被忽略。
 
-Note that this fork choice rule is compatible with the [plausible liveness](#plausible-liveness) guarantee of Casper FFG.
+请注意，这一分叉选择规则与 Casper FFG [合理的活性]([plausible liveness](#plausible-liveness)) 保证相兼容。
 
-#### The guarantees of Casper FFG
+#### Casper FFG 的保证
 
-The Casper FFG consensus protocol makes two guarantees that are analogous to, but different from, the concepts safety and liveness in classical consensus: accountable safety, and plausible liveness.
+Casper FFG 共识协议提供了两个保证，这两个保证类似于经典共识中的安全性和活性，但又有所不同：可问责的安全性（accountable safety）和合理的活性（plausible liveness）。
 
-##### Accountable safety
+##### 可问责的安全性
 
-Classical PBFT consensus can guarantee safety only when less than one-third of validators are adversarial (faulty). If more than one-third are adversarial then it makes no promises at all.
+经典的 PBFT 共识只能在少于三分之一的验证者是敌对的（有故障）时保证安全性。如果超过三分之一的验证者是敌对方，那么它根本无法做出任何保证。
 
-Casper FFG comes with essentially the same safety guarantee when validators controlling less than one-third of the stake are adversarial: finalised checkpoints will never be reverted. In addition, it provides the further guarantee that, if conflicting checkpoints are ever finalised, validators representing at least one-third of the staked Ether will be slashed. This is called "accountable safety". It is accountable in that we can identify exactly which validators behaved badly and punish them directly.
+当敌对验证者控制少于三分之一的质押时，Casper FFG 基本上提供了相同的安全性保证：已实现最终确定的检查点永远不会被回滚。此外，它进一步保证，如果相互冲突的检查点被最终确定，那么控制至少三分之一的质押以太币的验证者将被罚没。这被称为“可问责的安全性”。它是可问责的，因为我们可以精确识别哪些验证者行为不当并直接惩罚他们。
 
-The extra safety this guarantee provides is not safety in the usual consensus protocol sense of the word, but it is safety of a specifically cryptoeconomic nature: bad behaviour is heavily disincentivised by the protocol. It is often referred to as "economic finality".
+这种保证提供的额外安全性并不是传统共识协议意义上的安全性，而是一种特定的加密经济学性质的安全性：协议会极大地阻止不良行为。这通常被称为“经济最终确定性”。
 
-###### Proof of accountable safety
+###### 可问责安全性的证明
 
-The proof of Casper FFG's accountable safety is reasonably intuitive. I will sketch out the proof below more-or-less as it is presented in the Casper FFG paper, but modified for epochs rather than the more abstract "checkpoint height" that the paper uses.
+Casper FFG 的可问责安全性的证明相当直观。我将在下面勾勒出这个证明，它大致与 Casper FFG 论文中所述相似，但将其修改为适用于时段，而不是论文中使用的更抽象的“检查点高度”。 
 
-We will prove that, if fewer than $\frac{1}{3}$ of validators (weighted by stake) violate a [Casper commandment](#the-casper-commandments), two conflicting checkpoints cannot both be finalised. We will do this by showing that the only way a conflicting checkpoint could be finalised is for there to be a supermajority link that is surrounded by another supermajority link, which contradicts the assumption at start of this paragraph, since surround votes violate the [second commandment](#no-surround-vote).
+我们将证明，如果少于 $\frac{1}{3}$ 的验证者（按质押加权）违反其中一条 [Casper 戒律](#the-casper-commandments)，则两个相互冲突的检查点不能同时被最终确定。我们的思路是：唯一能够最终确定冲突检查点的方式是存在被另一个绝对多数链接环绕的绝对多数链接，而这与本段开头的假设相矛盾，因为环绕投票违反了[戒律二](#no-surround-vote)。
 
-The first handy observation we'll need is that, under this assumption, at most one checkpoint can be justified in any epoch (in the views of honest nodes). This follows directly from the no double vote commandment.
+我们需要注意的第一点是，在此假设下，任何时段内（在诚实节点看来）最多只有一个检查点被合理化，这直接源于不得双重投票戒律。
 
-Let us take two conflicting finalised checkpoints $a_m$ and $b_n$ in epochs $m$ and $n$ respectively. Since the checkpoints conflict, neither is a descendent of the other. From the previous observation, we know that $m \ne n$. Without loss of generality, we will take $m < n$, so that $b_n$ is the higher finalised checkpoint.
+让我们假设有分别位于时段 $m$ 和 $n$ 中的两个相互冲突的已被最终确定的检查点 $a_m$ 和 $b_n$。由于这些检查点是冲突的，因此其中任意一个不会是另一个的后代。根据之前的观察，我们知道 $m \ne n$。为了不失去普遍性，我们假设 $m < n$，因此 $b_n$ 是两者中较高的已被最终确定的检查点。
 
-Now, there must be a continuous series of justified checkpoints leading from the root checkpoint to $b_n$ with supermajority links between them. That is, there is a set of $k$ supermajority links $\{{r \rightarrow b_{i_1}},\allowbreak {b_{i_1} \rightarrow b_{i_2}},\allowbreak {b_{i_2} \rightarrow b_{i_3}},\allowbreak \ldots,\allowbreak {b_{i_{k-1}} \rightarrow b_{i_k}}\}$, with $i_k = n$. This follows from the definition of justification. The set of justified checkpoints leading to $b_n$ is thus, $\mathcal{B} = \{r, b_{i_1},\allowbreak b_{i_2}, b_{i_3},\allowbreak \ldots,\allowbreak b_{i_{k-1}}, b_{i_k}\}$. We can imagine bouncing along supermajority links from the root, landing on each of these checkpoints before jumping to the next.
+现在，必须有一个从根检查点到 $b_n$ 的合理化检查点的连续系列，并且它们之间有绝对多数链接。也就是说，有一组 $k$ 个绝对多数链接 ${{r \rightarrow b_{i_1}},\allowbreak {b_{i_1} \rightarrow b_{i_2}},\allowbreak {b_{i_2} \rightarrow b_{i_3}},\allowbreak \ldots,\allowbreak {b_{i_{k-1}} \rightarrow b_{i_k}}}$，其中 $i_k = n$。这符合合理性的定义。因此，通向 $b_n$ 的被合理化检查点集合是 $\mathcal{B} = {r, b_{i_1},\allowbreak b_{i_2}, b_{i_3},\allowbreak \ldots,\allowbreak b_{i_{k-1}}, b_{i_k}}$。我们可以想象，从根检查点出发，沿着绝对多数链接跳跃，依次落在这些检查点上，再跳到下一个。
 
 <a id="img_consensus_justification_chain"></a>
 <figure class="diagram" style="width: 85%">
@@ -1388,18 +1389,18 @@ Now, there must be a continuous series of justified checkpoints leading from the
 
 <figcaption>
 
-For any finalised checkpoint, such as $b_{10}$, there is a contiguous chain of supermajority links leading to it from the root, $r$. The chain of links here justifies the set of checkpoints $\mathcal{B} = \{r, b_1,\allowbreak b_4, b_5,\allowbreak b_9, b_{10}\}$. Shaded checkpoints are justified (and maybe finalised); cross-hatched checkpoints are finalised (also marked with "F").
+对于任何已被最终确定的检查点，例如 $b_{10}$，都有一条从根检查点 $r$ 到它自身的、连续的绝对多数链接组成的链。这条链接的链合理化检查点集合 $\mathcal{B} = {r, b_1,\allowbreak b_4, b_5,\allowbreak b_9, b_{10}}$。阴影中的检查点是被合理化的（并且可能是已被最终确定的）；交叉阴影中的检查点是已被最终确定的（也被标记为 “F”）。
 
 </figcaption>
 </figure>
 
-Now consider conflicting finalised checkpoint $a_m$. From the definition of finalisation, there must be a supermajority link ${a_m \rightarrow a_{m+1}}$ from $a_m$ to $a_{m+1}$ in the next epoch. Clearly neither $a_m$ nor $a_{m+1}$ is in the set $\mathcal{B}$, since that would make $a_m$ an ancestor of $b_n$ and not conflicting. Also, set $\mathcal{B}$ contains no checkpoint $b_m$ or $b_{m+1}$ since we may have only one justified checkpoint in an epoch.
+现在考虑相互冲突的已被最终确定的检查点 $a_m$。根据最终确定性的定义，必须存在一个从 $a_m$ 到下一时段中的 $a_{m+1}$ 的绝对多数链接 ${a_m \rightarrow a_{m+1}}$。显然，$a_m$ 和 $a_{m+1}$ 都不在集合 $\mathcal{B}$ 中，因为那会使 $a_m$ 成为 $b_n$ 的祖先并且不会发生冲突。同样，集合 $\mathcal{B}$ 中不包含检查点 $b_m$ 或 $b_{m+1}$，因为在一个时段中只能有一个被合理化的检查点。
 
-Given these observations, it is inevitable that the pair of checkpoints $(a_m, a_{m+1})$ falls between the epochs of two consecutive elements of $\mathcal{B}$, say $b_{i_{j-1}}$ and $b_{i_j}$. That is, there is a $j$ such that $i_{j-1} < m < m+1 < i_j$.
+根据这些观察，不可避免地是检查点对 $(a_m, a_{m+1})$ 位于 $\mathcal{B}$ 的两个连续元素的时段之间，比如 $b_{i_{j-1}}$ 和 $b_{i_j}$。也就是说，有一个 $j$ 使得 $i_{j-1} < m < m+1 < i_j$。
 
-Finally, we can see that there must be a supermajority link ${b_{i_{j-1}} \rightarrow b_{i_j}}$ that _surrounds_ the supermajority link ${a_m \rightarrow a_{m+1}}$. Either the surrounding or surrounded link cannot exist unless at least $\frac{1}{3}$ of validators have violated the second Casper commandment, which we have assumed they did not.
+最后，我们可以看到，必须有一个环绕着绝对多数链接 ${a_m \rightarrow a_{m+1}}$ 的绝对多数链接 ${b_{i_{j-1}} \rightarrow b_{i_j}}$ 。除非至少 $\frac{1}{3}$ 的验证者违反了第二条 Casper 戒律，否则环绕或被环绕的链接就不可能存在，而我们假设验证者们没有这样做。
 
-Therefore, we have proved (by contradiction) that two conflicting checkpoints cannot both be finalised if fewer than $\frac{1}{3}$ of validators (by weight) violate a Casper commandment.
+因此，我们已经证明了（通过反证法）如果少于 $\frac{1}{3}$ 的验证者（按权重计算）违反 Casper 戒律，则两个相互冲突的检查点不会同时被最终确定。
 
 <a id="img_consensus_conflicting_finalised"></a>
 <figure class="diagram" style="width: 85%">
@@ -1408,63 +1409,63 @@ Therefore, we have proved (by contradiction) that two conflicting checkpoints ca
 
 <figcaption>
 
-Suppose an earlier, conflicting checkpoint $a_6$ is finalised. Finalisation means that there must be a supermajority link ${a_6 \rightarrow a_7}$. One of the supermajority links on the $b$ chain &ndash; in this case, ${b_5 \rightarrow b_9}$ &ndash; must span ${a_6 \rightarrow a_7}$.
+假设一个较早的、相互冲突的检查点 $a_6$ 被最终确定。最终确定性意味着一定会有一个绝对多数链接 ${a_6 \rightarrow a_7}$。在 $b$ 链上的一个绝对多数链接——在这种情况下是 ${b_5 \rightarrow b_9}$——必须跨越 ${a_6 \rightarrow a_7}$。
 
 </figcaption>
 </figure>
 
-In this proof, we have relied on the definition of finalisation being that there is a supermajority link from the checkpoint being finalised to the checkpoint in the very next epoch. It turns out that we can relax that definition a little and calculate finality in the form of $k$-finality. We will discuss this [below](#k-finality).
+在这个证明中，我们依赖于最终确定性的定义，即从已经被最终确定的检查点到下一个时段的检查点之间有一个绝对多数链接。事实证明，我们可以稍微放宽这个定义，并以 $k$-最终确定性的形式计算最终确定性。我们将在[下面](#k-finality)讨论这一点。
 
-###### Economic finality
+###### 经济最终确定性
 
-The proof of accountable safety rested on there being,
+可问责安全性的证明依赖于以下两点：
 
-1. no two supermajority links that target distinct checkpoints at the same height, and
-2. no two supermajority links such that one surrounds the other.
+1. 没有两个绝对多数链接指向位于同一高度的不同检查点，且
+2. 没有其中一个环绕另一个的两个绝对多数链接。
 
-These conditions are enforced by the two [Casper commandments](#the-casper-commandments). Since a supermajority link requires support from $\frac{2}{3}$ of the validators (by stake), if there are two supermajority links that break one of these rules, then at least $\frac{1}{3}$ of the validators must have voted for both of the links. That is, at least $\frac{1}{3}$ of validators made a [double vote](#no-double-vote) or a [surround vote](#no-surround-vote).
+这些条件由 [Casper 戒律](#the-casper-commandments)强制执行。由于绝对多数链接需要 $\frac{2}{3}$ 验证者（按质押）的支持，如果存在违反这些规则的两个绝对多数链接，那么一定有至少 $\frac{1}{3}$ 的验证者同时为这两个链接投票。也就是说，至少 $\frac{1}{3}$ 的验证者进行了[双重投票](#no-double-vote)或[环绕投票](#no-surround-vote)。
 
-As we have [seen already](#slashing), any validator that breaks a commandment is liable to being slashed, that is, having all or part of its stake removed, and being ejected from the validator set. Therefore, in the event of a conflicting finalisation, we have the guarantee that at least $\frac{1}{3}$ of the staked Ether will be slashed.
+正如我们[已经看到的](#slashing)，任何违反戒律的验证者都将面临罚没，即移除其部分或全部质押，并将其逐出验证者集合。因此，在发生相冲突的最终确定性的情况下，我们保证至少 $\frac{1}{3}$ 的质押以太币将被罚没。
 
-In this way, slashing puts a price on attacking the chain, and a huge (and calculable) cost on successfully attacking the chain[^fn-current-cost-of-attack]. As Vitalik [puts it](https://medium.com/@VitalikButerin/minimal-slashing-conditions-20f0b500fc6c),
+通过这种方式，罚没给对链的攻击定了价，并且给对链的成功攻击设置了一个巨大且可计算的成本[^fn-current-cost-of-attack]。正如 Vitalik [所说](https://medium.com/@VitalikButerin/minimal-slashing-conditions-20f0b500fc6c)，
 
-> Basically, if a block is finalized, then that block is part of the chain, and it is very, very expensive to cause that to change.
+> 基本上，如果一个区块被最终确定，那么这个区块就是链的一部分，要改变这一点的代价非常非常高。
 
-[^fn-current-cost-of-attack]: As I write (in July 2023), there is 21.6 million ETH staked on the beacon chain, so a finality reversion would result in at least 7.2 million ETH being slashed. This amounts to \$13.7 billion of economic security against reversion, at current prices.
+[^fn-current-cost-of-attack]: 截至我写作时（2023 年 7 月），信标链上有 2160 万个以太币被质押，因此最终确定性的反转将导致至少 720 万个以太币被罚没。以当前价格计算，这相当于 137 亿美元的应对反转的经济安全性。
 
-We call this "economic finality". It is not finality enforced by software; it is finality enforced by the cost of an attack. Validators' stakes are a "good behaviour bond" that can be taken away from them if it is ever proved that they broke the protocol's rules. Validators have unique identities in the form of their secret keys that they use to sign all their messages, so it is possible to hold individual validators to account, and punish them very specifically.
+我们称之为“经济最终确定性”。它不是由软件强制执行的最终确定性；而是由攻击成本强制执行的最终确定性。验证者的质押是一种“良好行为保证金”，如果证明他们违反了协议规则，这些保证金会被没收。验证者拥有签署其所有消息的私钥代表的唯一身份，因此可以具体追究个别验证者的责任，并进行惩罚。
 
-You might wonder why we need a concept like economic finality at all. After all, PBFT manages to deliver finality without such a construct. Couldn't the protocol simply refuse to finalise a conflicting checkpoint?
+你可能会想，为什么我们甚至需要经济最终确定性这样的概念。毕竟，PBFT 能够在没有这种构造的情况下实现最终确定性。协议不能直接拒绝对相冲突检查点的最终确定吗？
 
-The difference is that in PBFT there is the luxury of a hard safety assumption that fewer than one-third of the validators are adversarial. Similarly, in Casper FFG, an adversary with less than one-third of the stake cannot finalise conflicting checkpoints. However, in the world of permissionless blockchains, we must have some defence for when more than one-third of the stake is adversarial. That defence is slashing, which gives us the economic finality guarantee: if more than one-third of validators are willing to behave badly, we can't prevent them from finalising conflicting checkpoints, but we can put a huge cost on doing so.[^fn-economic-finality-pow]
+区别在于，PBFT 有一个奢侈的硬性的安全性假设，即少于三分之一的敌对验证者。同样地，在 Casper FFG 中，一个拥有少于三分之一质押的敌对者无法最终确定相冲突的检查点。然而，在无许可的区块链世界中，我们必须为超过三分之一质押由敌对方掌控的情况做好防御。这个防御措施就是罚没，它为我们提供了经济最终确定性的保证：如果超过三分之一的验证者意欲作恶，我们无法阻止他们最终确定相冲突的检查点，但我们可以对这种行为设置一个巨大成本。[^fn-economic-finality-pow]
 
-[^fn-economic-finality-pow]: This has some conceptual similarity to the cost of mounting a 51% attack in proof of work. Except that, in PoW, the cost of a successful attack can be zero, since the attacker gains all the block rewards, and the attack can be repeated indefinitely using the same hardware. The economic finality provided by slashing is much higher. In Vlad Zamfir's famous words, getting slashed is "as though your ASIC farm burned down if you participated in a 51% attack".
+[^fn-economic-finality-pow]: 这在概念上与工作量证明中发起 51% 攻击的成本有些相似。不同的是，在 PoW 中，一次成功攻击的成本可能为零，因为攻击者可以获得所有的区块奖励，并且可以使用相同的硬件无限次重复攻击。通过罚没提供的经济最终确定性要高得多。用 Vlad Zamfir 著名的话来说，被罚没就像是“如果你参与了 51% 攻击，你的 ASIC 农场就会被烧毁”。
 
-In a blog post, [On Settlement Finality](https://blog.ethereum.org/2016/05/09/on-settlement-finality), Vitalik puts it like this,
+在一篇博客文章《关于结算的最终确定性》（[On Settlement Finality](https://blog.ethereum.org/2016/05/09/on-settlement-finality)）中，Vitalik 如此描述：
 
-> We can't guarantee that "X will never be reverted", but we _can_ guarantee the slightly weaker claim that "either X will never be reverted or a large group of validators will voluntarily destroy millions of dollars of their own capital".
+> 我们不能保证 “X 永远不会被回滚”，但我们能保证稍弱一点的说法，即“要么 X 永远不会被回滚，要么一大群验证者将自愿摧毁他们自己的数百万美元的资本”。
 
-Faced with a greater than one-third attacker and an asynchronous network, it's not useful for validators simply to refuse to finalise conflicting checkpoints in-protocol. Attacks that can finalise conflicting checkpoints depend on partitioning the set of honest validators so that they don't see each other's votes, and don't know what the other side has finalised. Under the treat of such powerful attacks, economic finality is a powerful safety guarantee. The ultimate remedy in the event of conflicting finality is manual intervention. As Vitalik observes in the same post, "the user community around an on-chain asset is quite free to simply apply common sense to determine which fork was not an attack and actually represents the result of the transactions that were originally agreed upon as finalized".
+面对超过三分之一的攻击者和异步网络，验证者仅仅在协议内拒绝最终确定相冲突的检查点是无效的。可以最终确定相冲突检查点的攻击依赖于将诚实验证者分隔开来，使他们看不到彼此的投票，也不知道另一方最终确定的是什么。在这种强力攻击的威胁下，经济最终确定性是一种强有力的安全性保证。在相冲突的最终确定性发生时的最终补救措施是手动干预。正如 Vitalik 在同一篇文章中所指出的，“链上资产的用户社区完全可以自由地应用常识来确定哪个分叉不是攻击，并实际代表最初被一致认可为被是最终确定的交易结果。”
 
-##### Plausible liveness
+##### 合理的活性
 
-Casper FFG on its own does not offer liveness in the classic sense of ensuring that users' transactions get included on chain. All block production and chain building is the responsibility of the underlying consensus mechanism, LMD GHOST in our case.
+仅靠 Casper FFG 并不能提供经典意义上的活性，即确保用户的交易上链。所有区块生产和链构建的责任都在于底层共识机制，在以太坊中是 LMD GHOST。
 
-However, there is a sense in which we want Casper FFG to be live: we always want to be able to continue justifying and finalising checkpoints if at least two-thirds of validators are honest, without any of those validators getting slashed. Conversely, we never want to end up in a deadlock in which it is not possible to finalise a new checkpoint without honest validators being slashed. This accords with the "something good eventually happens" [definition](/part2/consensus/preliminaries/#safety-and-liveness) of liveness.
+然而，在某种意义上，我们希望 Casper FFG 是活跃的：我们总会希望，只要至少有三分之二的验证者是诚实的，并且没有任何验证者被罚没，我们就能继续合理化和最终确定检查点。相反，我们绝不希望陷入无法在不罚没诚实验证者的情况下确定新检查点的僵局。这与“最终会发生某些好事”的活性[定义](/part2/consensus/preliminaries/#safety-and-liveness)相一致。
 
-In [Vitalik's words](https://medium.com/@VitalikButerin/minimal-slashing-conditions-20f0b500fc6c),
+用 [Vitalik 的话说](https://medium.com/@VitalikButerin/minimal-slashing-conditions-20f0b500fc6c)：
 
-> Plausible liveness basically means that "it should not be possible for the algorithm to get 'stuck' and not be able to finalize anything at all".
+> 合理的活性基本上意味着“算法不应该陷入‘卡住’而无法最终确定任何事情的状态”。
 
-More formally, from the Casper paper,
+Casper 论文中更正式的说法：
 
-> Supermajority links can always be added to produce new finalized checkpoints, provided there exist children extending the finalized chain.
+> 只要存在扩展已被最终确定的链的子检查点，就总能添加绝对多数链接以产生新的最终确定检查点。
 
-The proof runs like this. There will be an existing highest justified checkpoint, $a$, and there will be a checkpoint $b$ at the same height or higher (not necessarily descending from $a$) that is the highest checkpoint for which any validator has made a target vote.
+证明如下。将会存在一个现有的最高合理化检查点 $a$，且将会有一个高度相同或更高（不一定是 $a$ 的后代）的检查点 $b$，这是任何验证者对其进行目标投票的最高检查点。
 
-Let $c$ be a checkpoint on the chain descending from $a$ in epoch $h(b) + 1$, that is, the epoch directly after $b$.
+设 $c$ 是链上第 $h(b) + 1$ 时段（即紧接 $b$ 时段）中从 $a$ 派生的一个检查点。
 
-All validators can vote for the link ${a \rightarrow c}$ without fear of being slashed because, (1) it cannot be a double vote, since no validator has previously voted with target $h(c)$, and (2) it cannot be a surround vote since no honest validator can have previously used a source higher than $h(a)$, nor can it be a surrounded vote since no existing link has a target higher than $h(b)$.
+所有验证者都可以投票给链接 ${a \rightarrow c}$ 而不必担心被罚没，因为，（1）既然之前没有验证者投票的目标是 $h(c)$，这就不可能是双重投票。并且（2）这不可能是环绕投票，因为诚实验证者之前使用的来源不会高于 $h(a)$，也不可能是被环绕的投票，因为现有链接的目标不会高于 $h(b)$。
 
 <a id="img_consensus_plausible_liveness"></a>
 <figure class="diagram" style="width: 65%">
@@ -1473,20 +1474,20 @@ All validators can vote for the link ${a \rightarrow c}$ without fear of being s
 
 <figcaption>
 
-Voting for the link ${a \rightarrow c}$ is safe because (1) nobody has previously voted with $c$ as the target as $b$ has the highest target votes so far, and (2) it cannot surround another link since there is no higher justified checkpoint than $a$ to use as a source vote.
+投票给链接 ${a \rightarrow c}$ 是安全的，因为（1）没有人之前以 $c$ 为目标投票，因为 $b$ 拥有当下最高的目标投票，且（2）它不可能环绕另一个链接，因为没有比 $a$ 更高的，可以用作来源投票的合理化检查点。
 
 </figcaption>
 </figure>
 
-Therefore we can justify checkpoint $c$. It is then clearly safe for all validators to vote ${c \rightarrow d}$ where $d$ is the direct child of $c$, and thus we can finalise $c$ without breaking either of the commandments.
+因此，我们可以合理化检查点 $c$。显然，投票给 ${c \rightarrow d}$（其中 $d$ 是 $c$ 的直接子检查点）对所有验证者来说都是安全的，因此我们可以在不违反任何规则的情况下最终确定 $c$。
 
-This requirement for plausible liveness underpins Casper FFG's [fork choice rule](#fork-choice-rule): the underlying consensus mechanism must follow the chain containing the justified checkpoint of the greatest height. As long as the underlying chain keeps building on top of the highest justified checkpoint then, according to this proof, we are guaranteed to be able to keep finalising checkpoints on it without anyone getting slashed.
+这种对合理的活性的要求是 Casper FFG [分叉选择规则](#fork-choice-rule)的基础：底层共识机制必须跟随包含最高已被合理化的检查点的链。只要底层链继续被构建在最高已被合理化的检查点之上，根据这个证明，我们就能保证在不罚没任何人的情况下继续最终确定其上的检查点。
 
-#### Exercise
+#### 练习
 
-As an interlude, it's a fun and useful exercise to think through different ways in which Casper FFG could behave.
+作为插曲和一个有趣有用的练习，让我们来思考一下 Casper FFG 可能的不同表现。
 
-For example, how could a situation like the following diagram arise? That is, with supermajority links continually skipping checkpoints, resulting in a string of justified checkpoints with none finalised.
+例如，以下图示中的情况是如何出现的？即，绝对多数链接不断跳过检查点，导致一串已被合理化，但没有一个被最终确认的检查点。
 
 <a id="img_consensus_exercise_0"></a>
 <figure class="diagram" style="width: 80%">
@@ -1495,44 +1496,45 @@ For example, how could a situation like the following diagram arise? That is, wi
 
 <figcaption>
 
-Always justifying but never finalising. How can we get into such a situation?
+总是在合理化但从未最终确定。我们怎么会陷入这种情况？
 
 </figcaption>
 </figure>
 
-The answer is [below](#answer-to-the-exercise), but take a moment to think through the circumstances that could lead to this.
+答案在[下面](#answer-to-the-exercise)，但先花点时间思考一下可能导致这种后果的情形。
 
-#### Casper FFG miscellania
+#### Casper FFG 杂项
 
-##### Incentives
+##### 激励
 
-In LMD GHOST, we saw that correct head votes that are included in a block in the next slot receive a reward. But there was no penalty for late or incorrect head votes.
+在 LMD GHOST 中，我们看到被包含在下一个时隙的区块中的正确头块投票会得到奖励。但对于延迟或不正确的头块投票则没有惩罚。
 
-Rewards and penalties are a little more complex in the implementation of Casper FFG. Validators are [well incentivised](/part2/incentives/rewards/#introduction) to make accurate and timely Casper FFG votes: 22% of a validator's potential staking rewards come from source votes, and 41% from target votes. Moreover, inaccurate or late source or target votes are penalised by the same amount as the reward.
+在 Casper FFG 的实现中，奖励和惩罚要复杂一些。验证者被[充分激励](/part2/incentives/rewards/#introduction)以去做出准确和及时的 Casper FFG 投票：验证者潜在质押奖励的 22% 来自来源投票，41% 来自目标投票。此外，不准确或延迟的来源或目标投票会被施以同等额度的惩罚。
 
-To get any Casper FFG reward at all, a validator's source vote must be correct. That is, it must agree with the history that the eventual canonical chain converges on. If the source vote is incorrect, then it's as if the validator has not voted at all and it receives a full penalty for missing both source and target. The rationale for this is that having a wrong source means that it was working on a different branch from the one that became canonical in the end. Thus its votes were competing with rather than supporting the consensus.
+为了获得任何 Casper FFG 奖励，验证者的来源投票必须是正确的。也就是说，它必须与最终汇聚的正统链的历史一致。如果源投票不正确，那么就如同验证者根本没有投票一样，并且它会因错过来源和目标投票而受到完整的惩罚。这是因为错误的来源意味着它之前处理的是一个最终没有成为正统的分支。因此，该投票是在与共识竞争，而不是支持共识。
 
-To receive the source vote reward, the source vote must be correct, and it must also be timely. If a validator's vote is included in a block within five slots, then it receives the source vote reward, otherwise it receives a penalty of the same size. There is some discussion of the reason for the five slot limit in the [Annotated Specification](/part2/incentives/rewards/#timeliness).
+为了获得来源投票的奖励，来源投票必须是正确的，并且必须是及时的。如果验证者的投票在五个时隙内被包含在区块中，那么它会获得来源投票奖励，否则它会受到同等大小的惩罚。在[规范注解](/part2/incentives/rewards/#timeliness)中有一些关于五个时隙限制原因的讨论。
 
-To receive the target vote reward, the target vote must be correct, and it must also be timely. If a validator's vote is included in a block within thirty-two slots, then it receives the target vote reward, otherwise it receives a penalty of the same size[^fn-deneb-change-to-target-inclusion-time].
+为了获得目标投票奖励，目标投票必须是正确的，并且也必须是及时的。如果验证者的投票在三十二个时隙内被包含在区块中，那么它会获得目标投票奖励，否则它会受到同等大小的惩罚[^fn-deneb-change-to-target-inclusion-time]。
 
-[^fn-deneb-change-to-target-inclusion-time]: This will [be changed](https://github.com/ethereum/consensus-specs/pull/3360) at the Deneb upgrade. Target votes for either the current or previous epoch will be valid, rather than expiring after 32 slots.
+[^fn-deneb-change-to-target-inclusion-time]: 这将在 Deneb 升级时发生[改变](https://github.com/ethereum/consensus-specs/pull/3360)。当前或上一个时段的目标投票都将是有效的，而不是在 32 个时段后失效。
 
-The Annotated Spec has a [full matrix](/part2/incentives/penalties/#penalties-rewards-table) of rewards and penalties for the different degrees of correctness and timeliness of votes.
+对于投票的不同程度的正确性和及时性，规范注解中有一个[完整的奖惩矩阵](/part2/incentives/penalties/#penalties-rewards-table)。
 
-##### Dynamic validator sets
 
-In all of the above, we have discussed Casper FFG in terms of a static validator set, assuming that no validators enter or exit the protocol. This is not entirely realistic, as we wish to be able to onboard new stakers and to allow stakers to exit.
+##### 动态验证者集合
 
-The Casper FFG paper discusses how accountable safety can be maintained when the validator set changes from epoch to epoch. It analyses this in terms of forward and rear validator sets. The implementation in Ethereum 2.0 ignores this mechanism, working around it instead by severely rate-limiting validator activations and exits. Each epoch, we allow activations and deactivations of validators amounting to a fraction of about 0.0015% of the full validator (see [`CHURN_LIMIT_QUOTIENT`](/part3/config/configuration/#validator-cycle)).
+在上述讨论中，我们假设 Casper FFG 协议中使用的是静态验证者集合，即假定没有验证者加入或退出协议。然而，这并不完全符合实际，因为我们希望能够引入新的质押者并允许质押者退出。
 
-The effect of this simplification is analysed in the [Gasper paper](https://arxiv.org/pdf/2003.03052.pdf), section 8.6. By rate-limiting entries and exits, but not accounting for forward and rear validator sets, we fractionally reduce the level of accountable safety. That is, it is possible that slightly less than one-third of the stake gets slashed in the event of finalising a conflicting checkpoint. Specifically, if the validator sets between the epochs of the two conflicting finalised checkpoints differ by a staked amount $\varepsilon$, then the economic finality (the minimum amount of stake that will get slashed) becomes $\frac{2}{3} - \varepsilon$ rather than $\frac{2}{3}$. In practice, the rate limiting of validator set changes is so severe that this difference is negligible.
+Casper FFG 论文讨论了当验证者集合在每个时段发生变化时，如何维持可问责的安全性。它通过前置和后置验证者集合的概念去分析这一点。以太坊 2.0 的实现忽略了这种机制，转而通过严格限制验证者的激活和退出来解决这个问题。在每个时段中，我们允许的验证者激活和停用的数量大约占总验证者的 0.0015%（参见 [`CHURN_LIMIT_QUOTIENT`](/part3/config/configuration/#validator-cycle)）。
 
-##### k-finality
+[Gasper 论文](https://arxiv.org/pdf/2003.03052.pdf)第 8.6 节分析了这种简化的效果。通过限制验证者的进出频率，但不考虑前置和后置验证者集合，我们在微微降低了可问责的安全性。也就是说，在最终确定一个相互冲突的检查点时，可能会有略少于三分之一的质押被罚没。具体来说，如果两个相互冲突的、被最终确定的检查点之间的验证者集合在质押数量上相差 $\varepsilon$，那么经济最终确定性（即将被罚没的最低质押数量）将变为 $\frac{2}{3} - \varepsilon$，而不是 $\frac{2}{3}$。在实践中，由于验证者集合变化的频率限制非常严格，这种差异可以忽略不计。
 
-The original Casper paper requires that, to finalise a checkpoint, we must have a supermajority link from that checkpoint to its direct descendant. It turns out that we can generalise this without affecting the validity of the safety proof.
+##### k-最终确定性（k-finality）
 
-The key observation that the safety proof relies on is the existence of a supermajority link between two consecutive members of $\mathcal{B}$ spanning the supermajority link ${a_m \rightarrow a_{m+1}}$ that finalises $a_m$. However, the surrounding link on the $b$ branch must still exist if there is a supermajority link ${a_m \rightarrow a_{m+k}}$ where all the checkpoints between $a_m$ and $a_{m+k}$ are justified on the $a$ branch. That's because $\mathcal{B}$ cannot have members in the epochs $m$ to $m+k$ if this is so.
+在最初的 Casper 论文中，要最终确定一个检查点，我们必须有一个从该检查点到其直接后代的绝对多数链接。事实证明，我们可以在不影响安全性证明有效性的情况下将其普遍化。
+
+安全性证明所依赖的关键观察是，在跨度为绝对多数链接 ${a_m \rightarrow a_{m+1}}$，最终确定了 $a_m$ 的 $\mathcal{B}$ 的两个连续成员之间存在一个绝对多数链接。然而，如果存在一个绝对多数链接 ${a_m \rightarrow a_{m+k}}$，且 $a_m$ 到 $a_{m+k}$ 之间的所有检查点在 $a$ 分支上都被合理化了，那么 $b$ 分支上的周边链接仍然必须存在。因为，如果是这样，在第 $m$ 到第 $m+k$ 个时段之间， $\mathcal{B}$ 就不会有成员。
 
 <a id="img_consensus_k_finality_proof"></a>
 <figure class="diagram" style="width: 85%">
@@ -1541,16 +1543,16 @@ The key observation that the safety proof relies on is the existence of a superm
 
 <figcaption>
 
-The guarantees of the accountable safety proof all carry over if we finalise a checkpoint when there is a supermajority link from it that jumps over only justified checkpoints. Here, $a_5$ and $a_6$ are justified, so we can safely finalise $a_4$ with the supermajority link ${a_4 \rightarrow a_7}$.
+如果一个绝对多数链接从某个检查点跳过多个被证明的检查点，所有可追责安全性证明的保证仍然成立。在这里，$a_5$ 和 $a_6$ 是被证明的，所以我们可以用超多数链接 ${a_4 \rightarrow a_7}$ 安全地最终确定 $a_4$。
 
 </figcaption>
 </figure>
 
-So, our generalised finality rule is that we can finalise checkpoint $a_m$ when we have a supermajority link ${a_m \rightarrow a_{m+k}}$ and checkpoints $a_{m+1}$, $a_{m+2}$, $\ldots$, $a_{m+k-1}$ are all justified.
+所以，通用的最终确定性规则是，当我们有一个绝对多数链接 ${a_m \rightarrow a_{m+k}}$，并且检查点 $a_{m+1}$, $a_{m+2}$, $\ldots$, $a_{m+k-1}$ 都被证明是合理的时，我们可以最终确定检查点 $a_m$。
 
-This is called $k$-finality and is discussed in section 4.5 of the [Gasper paper](https://arxiv.org/pdf/2003.03052.pdf).
+这被称为 $k$-最终确定性，并在 [Gasper 论文](https://arxiv.org/pdf/2003.03052.pdf) 的第 4.5 节中被讨论。
 
-How many checkpoints $k$ one might want to consider when calculating finality depends on how much record keeping one is prepared to do. On the Ethereum&nbsp;2.0 beacon chain we have adopted $2$-finality: we keep a record of the justification status of four consecutive epochs, and allow the processing of target votes for two epochs (older target votes are considered invalid).
+在计算最终确定性时，考虑多少个检查点 $k$ 取决于准备记录多少内容。在以太坊 2.0 信标链上，我们采用 $2$-最终确定性：我们记录四个连续时段的合理性状态，并允许处理两个时段的目标投票（更旧的目标投票被视为无效）。
 
 <a id="img_consensus_2_finality"></a>
 <figure class="diagram" style="width: 65%">
@@ -1559,26 +1561,26 @@ How many checkpoints $k$ one might want to consider when calculating finality de
 
 <figcaption>
 
-The four cases of 2-finality. In each case the supermajority link causes the checkpoint at its start (the source) to become finalised and the checkpoint at its end (the target) to become justified. Cases 2 and 4 are classic 1-finality. Checkpoint numbers are along the bottom.
+2-最终确定性的四种情况。在每种情况下，绝对多数链接都会使其起始的检查点（源）最终确定，并使其结束的检查点（目标）得到合理化。情况 2 和情况 4 是经典的 $1$-最终确定性。检查点编号沿底部排列。
 
 </figcaption>
 </figure>
 
-Almost always, we would expect to see only the $1$-finality cases, in particular, case 4. The $2$-finality cases would occur only in situations where many attestations are delayed, or when we are very close to the two-thirds participation threshold. Note that these evaluations stack, so it is possible for rule 2 to finalise $C_{n-2}$ and then for rule 4 to immediately finalise $C_{n-1}$, for example.
+几乎总是，我们只会看到 $1$-最终确定性的情况，特别是情况 4。$2$-最终确定性的情况只会在许多认证被延迟或我们非常接近三分之二的参与阈值时发生。请注意，这些评估是堆叠的，因此规则 2 可以最终确定 $C_{n-2}$，然后规则 4 可以立即最终确定 $C_{n-1}$。
 
-The detailed mechanics of this are performed in the [`weigh_justification_and_finalization()`](/part3/transition/epoch/#def_weigh_justification_and_finalization) function during epoch processing[^fn-danny-k-finality-video].
+详细机制是在时段处理期间通过 [`weigh_justification_and_finalization()`](/part3/transition/epoch/#def_weigh_justification_and_finalization) 函数执行的[^fn-danny-k-finality-video].
 
-[^fn-danny-k-finality-video]: Danny Ryan briefly discussed $k$-finality in [this video](https://www.youtube.com/watch?v=N5DdClfLQfw&t=601s) from Devcon V.
+[^fn-danny-k-finality-video]: Danny Ryan 在 Devcon V 的[这个视频](https://www.youtube.com/watch?v=N5DdClfLQfw&t=601s)中简要讨论了 $k$-最终确定性。
 
-##### Why two-thirds?
+##### 为什么是三分之二？
 
-Where does the $\frac{2}{3}$ majority threshold for finalisation come from? It's actually [not obvious](https://ethresear.ch/t/latest-casper-basics-tear-it-apart/151/58?u=benjaminion), and we could have chosen a different value to define a supermajority link. Let's call this threshold $p$: if a proportion $p$ of the validator set votes to finalise a checkpoint then it is finalised.
+最终确定的 $\frac{2}{3}$ 多数阈值是从哪里来的？这其实[并不明显](https://ethresear.ch/t/latest-casper-basics-tear-it-apart/151/58?u=benjaminion)，我们本可以选择一个不同的值来定义绝对多数链接。让我们把这个阈值称为 $p$：如果有 $p$ 比例的验证者集投票来最终确定一个检查点，那么它就被最终确定了。
 
-We are seeking to balance two factors. On the one hand, a proportion $1-p$ of adversarial or faulty validators can prevent finality, which is a kind of liveness failure.
+我们试图在两个因素之间取得平衡。一方面，比例为 $1-p$ 的敌对或有故障的验证者可以阻止最终确定，这是一种活性失败。
 
-On the other hand, we want to maximise the accountable safety of finalisation. That is, the proportion of the stake that must equivocate in order to finalise conflicting checkpoints. This proportion is $2p-1$.
+另一方面，我们希望最大化最终确定性的可问责安全性。也就是说，为了最终确定相互冲突的检查点，有多少比例的质押必须模棱两可。这一比例是 $2p-1$。
 
-Given these constraints, setting $p = \frac{2}{3}$ maximises fault tolerance against liveness attacks &ndash; less than one third of validators cannot prevent finalisation &ndash; while maximising tolerance to safety faults &ndash; at least one third of validators would be slashed if conflicting blocks were finalised.
+在这些约束条件下，设置 $p = \frac{2}{3}$ 可以最大化对活性攻击的容错能力——少于三分之一的验证者不能阻止最终确定；同时最大化对安全性故障的容忍度——如果最终确定了相冲突的区块，至少三分之一的验证者将被罚没。
 
 <a id="img_consensus_two_thirds"></a>
 <figure class="diagram" style="width: 40%">
@@ -1587,24 +1589,24 @@ Given these constraints, setting $p = \frac{2}{3}$ maximises fault tolerance aga
 
 <figcaption>
 
-The threshold that maximises both accountable safety and tolerance to liveness faults together is $p = \frac{2}{3}$.
+为了同时最大化可问责的安全性和对活性故障的容忍度，最佳阈值是 $p = \frac{2}{3}$。
 
 </figcaption>
 </figure>
 
-Vitalik wrote some notes on this in footnote 2 of the [Minimal Slashing Conditions](https://medium.com/@VitalikButerin/minimal-slashing-conditions-20f0b500fc6c#44b0) article.
+Vitalik 在《最小的罚没条件》（[Minimal Slashing Conditions](https://medium.com/@VitalikButerin/minimal-slashing-conditions-20f0b500fc6c#44b0)）文章的脚注 2 中对此做了一些解释。
 
-##### How not to get slashed
+##### 如何避免被罚没
 
-The two Casper commandments are quite simple, and avoiding being slashed is straightforward in principle: just don't break the rules.
+Casper 的两条戒律非常简单，原则上避免被罚没也很容易：只需遵守规则。
 
-By far the most common reason that validators get slashed is due to their secret signing key being run on different nodes at the same time. If the nodes' views of the network diverge at all &ndash; for example, due to a checkpoint block being seen late by one, but not the other &ndash; then each instance of the validator can end up signing different votes for the same epoch, violating the first commandment.
+至今为止，验证者被罚没的最常见原因是其秘钥同时在不同节点上运行。如果节点对网络的视图有任何分歧——例如，一个节点比另一个节点更晚看到某个检查点区块——那么验证者的每个实例都可能会为同一个时段签署不同的投票，从而违反第一条戒律。
 
-The basic way to avoid this is simply not to do that. Only ever run your keys in one place at any time. Client software implementations often provide a defensive mechanisms such as [doppelganger detection](https://docs.teku.consensys.net/how-to/enable-doppelganger-detection) to help to protect stakers from doing this inadvertently. Doppelganger detection will wait for a couple of epochs before starting to sign attestations; if, during this time, it sees signatures on chain from another instance with the same keys, it refuses to start. An alternative is to delegate signing of votes to a centralised signer that maintains a database of your validator's past votes, and will refuse to sign anything that violates the commandments. One such signing service is [Web3Signer](https://docs.web3signer.consensys.net/).
+避免这种情况的基本方法就是不要这样做——任何时候都只在一个地方运行你的私钥。客户端软件实现通常提供防御机制，例如[二重奏检测]（[doppelganger detection](https://docs.teku.consensys.net/how-to/enable-doppelganger-detection)），来防止质押者在无意中犯错。在开始签署认证前，二重奏检测会等待几个时段；如果在此期间它在链上看到来自同一密钥的其他实例的签名，它将拒绝启动。另一种方法是将对投票的签署委托给一个维护你验证者过去投票数据库并且会拒绝签署任何违反戒律的内容的中心化签署者。[Web3Signer](https://docs.web3signer.consensys.net/) 就是这样的签名服务。
 
-It is possible in rare instances for even a single instance of a validator to get into a situation where it could make slashable attestations. For example, if the host machine's clock were to jump backward in time. Or when there is a long reversion in the chain, greater than an epoch, a validator's duties can be recalculated. It may find that it has voted in the epoch once already due to its old duties, and then its new duties call for it to vote again later in the epoch, which will lead to a slashable double vote.
+在极少数情况下，即使是单个实例的验证者也可能进入可能导致可被罚没的认证的情况。例如，如果主机的时钟跳到之前的一个时间，或当链出现超过一个时段的长时间回滚时，验证者的职责可能会被重新计算。它可能发现由于其过去的职责，它已经在该时段内投票一次，而新的职责要求它在该时段再次投票，这将导致可被罚没的双重投票。
 
-For reasons like these, all client software includes slashing protection mechanisms. Different clients take different approaches, but there is an agreed common interchange format for the slashing protection data, [EIP-3076](https://eips.ethereum.org/EIPS/eip-3076), that can be used for migrating between clients if necessary. Teku takes a very robust, minimalist approach to this. For each validator managed by a Teku node, it [maintains a text file](https://docs.teku.consensys.net/concepts/slashing-protection#validator-slashing-protection-file) with the epoch numbers of the validator's highest source vote and highest target vote to date. For a new attestation to be signed, its source must not be lower than the stored source, and its target must be higher than the stored target. This is sufficient to guarantee that a single instance of a Teku validator will not make a double vote for the same target epoch, and will not make a surround vote.
+出于这些原因，所有客户端软件都包含防止罚没的机制。不同的客户端采取不同的方法，但有一个约定的通用交换格式，[EIP-3076](https://eips.ethereum.org/EIPS/eip-3076)，用于对保护罚没的数据的迁移。如果有必要，也可以用于在客户端之间迁移。Teku 对此采取了非常稳健、极简的方法。对于由 Teku 节点管理的每个验证者，它会[维护一个文本文件](https://docs.teku.consensys.net/concepts/slashing-protection#validator-slashing-protection-file)，记录该验证者至今为止的最高来源投票和最高目标投票的时段编号。要签署新的认证，其来源不得低于已存储的来源，目标必须高于已存储的目标。这足以保证 Teku 验证者的单个实例不会为同一目标时段进行双重投票，也不会进行环绕投票。
 
 ##### Casper FFG vs PBFT
 
@@ -3063,66 +3065,65 @@ And for credential changes.
   - [`process_bls_to_execution_change()`](/part3/transition/block/#def_process_bls_to_execution_change) in [block processing](/part3/transition/block/).
   - The `submitPoolBLSToExecutionChange` method of the [Beacon API](https://ethereum.github.io/beacon-APIs/#/Beacon/submitPoolBLSToExecutionChange).
 
-## The Incentive Layer <!-- /part2/incentives/ -->
+## 激励层 <!-- /part2/incentives/ -->
 
-### Carrots and Sticks and Sudden Death
+### 胡萝卜加大棒与突然死亡
 
-Permissionless blockchains are cryptoeconomic systems: cryptography enforces correct behaviour where possible; economics incentivises correct behaviour where it cannot be enforced. The correct behaviours we're looking for roughly correspond to availability and security. We want the chain to keep making progress, and we want the chain to give reliable, non-contradictory results under all reasonable circumstances.
+无需许可的区块链是加密经济系统：在可能的情况下，密码学强制执行正确的行为；在无法强制执行的情况下，经济学激励正确的行为。我们所追求的正确行为大致与可用性和安全性相对应。我们希望链持续前进，并在所有合理的情况下提供可靠的、无矛盾的结果。
 
-This chapter describes the economic tools the beacon chain uses to incentivise its participants; the cryptography side is covered elsewhere. Broadly speaking, the tools available to help us meet these goals are (1) rewards for behaviour that helps the protocol, (2) penalties for behaviour that hinders the protocol, and (3) punishments for behaviour that looks like an attack on the protocol.
+本章将介绍信标链中用于激励参与者的经济工具；密码学方面的内容将在其他章节涉及。概括地说，帮助我们实现这些目标的工具有：（1）奖励有助于协议的行为；（2）惩罚阻碍协议的行为；（3）惩罚看似是攻击协议的行为。
 
-One of the few attractive aspects of proof of work is the simplicity of its economic model. Miners receive block rewards for creating blocks that get included on chain, and receive fees for including transactions in their blocks. The block rewards come from newly created coins (issuance), and transaction fees are from previously issued coins. There are no explicit in-protocol penalties or punishments. Combined with the "heaviest chain" fork choice rule, this simple model has proved to be incredibly robust. Ethereum&nbsp;1 added a little complexity with uncle rewards for miners and the EIP-1559 fee burning mechanism, but it remains fundamentally simple and fairly easy to reason about.
+工作量证明少数吸引人的方面之一是其经济模型的简单性。矿工们通过创建被链所接受的区块以获得区块奖励，并通过在其区块中包含人们的交易以获得费用。区块奖励来自新创建（发行）的币，交易费用来自之前发行的币。协议中没有明确的处罚或惩罚。结合“最重链”的分叉选择规则，这种简单的模式被证明是非常稳健的。以太坊 1 通过对矿工的数块奖励和 EIP-1559 费用燃烧机制增加了一点复杂性，但它基本上还是很简单，相当容易推理。
 
-By contrast, the Ethereum&nbsp;2.0 proof of stake protocol employs an array of different economic incentives. We will break things down into the following elements over the next sections.
+相比之下，以太坊 2.0 权益证明协议采用了一系列不同的经济激励措施。在接下来的章节中，我们会将其细分为以下内容。
 
-1. The most fundamental economic component is the [stake](/part2/incentives/staking/) itself.
-2. Within the protocol, the stake is represented in validator [balances](/part2/incentives/balances/), in particular a quantity called the "effective balance" that is the actual measure of the influence a particular validator has on the protocol.
-3. Similarly to proof of work, the protocol issues new coins to provide the incentives we are discussing. We'll look at this in the section on [issuance](/part2/incentives/issuance/).
-4. An array of [rewards](/part2/incentives/rewards/) is used to incentivise desirable behaviours such as publishing beacon blocks and timely attestations.
-5. [Penalties](/part2/incentives/penalties/) are used to disincentivise undesirable behaviours such as failing to make attestations, or making late or incorrect attestations.
-6. The [inactivity leak](/part2/incentives/inactivity/) is a special regime that the beacon chain may enter in which rewards and penalties are modified to much more heavily penalise non-participation.
-7. [Slashings](/part2/incentives/slashing/) are punishments for breaking the protocol rules in very specific ways that look like attacks.
-8. Finally, we close with a note on how aspects of these incentives combine to make [diversity](/part2/incentives/diversity/) of deployment of beacon chain infrastructure the safest strategy.
+1. 最基本的经济要素是[质押](/part2/incentives/staking/)本身。
+2. 在协议中，质押以验证者[余额](/part2/incentives/balances/)的形式表示，特别是一个被称为“有效余额”的数量，它是衡量特定验证者对协议影响的实际尺度。
+3. 与工作量证明类似，协议发行新硬币以提供我们正在讨论的激励。我们将在“发行（[issuance](/part2/incentives/issuance/)）”部分探讨这一点。
+4. 一系列奖励（[rewards](/part2/incentives/rewards/)）被用于激励诸如发布信标区块和及时进行认证等理想行为。
+5. 惩罚（[Penalties](/part2/incentives/penalties/)）则用来抑制不可取的行为，如未能进行认证，延迟作出认证或作出不正确的认证。
+6. 怠惰惩罚（[inactivity leak](/part2/incentives/inactivity/)）是信标链可能采用的一种特殊机制，在这种机制中，奖惩措施会被修改，以更严厉地惩罚不参与的行为。
+7. 罚没（[Slashings](/part2/incentives/slashing/)）是对以非常具体的类似攻击的方式违反协议规则的惩罚。
+8. 最后，我们以此结束：这些激励措施如何结合在一起，使信标链基础设施的[多样化](/part2/incentives/diversity/)部署成为最安全的策略。
 
-Be aware that the discussion in these sections considers the consensus layer in isolation. Now that we are post-Merge, this is no longer the whole picture. In addition to protocol-generated rewards, Ethereum stakers can now profit from transaction fee tips, and [MEV](https://ethereum.org/en/developers/docs/mev/) (maximal extractable value). In future, they might be able to profit from [restaking](https://docs.eigenlayer.xyz/overview/readme). All of these can modify the protocol incentives. For example, a validator behaved economically rationally when it got itself [slashed](https://beaconcha.in/validator/552061) (at a cost of 1&nbsp;ETH) to [gain around \$20 million](https://collective.flashbots.net/t/post-mortem-april-3rd-2023-mev-boost-relay-incident-and-related-timing-issue/1540) of MEV income, although it acted dishonestly by the protocol rules in doing so. The effects of these things are the subject of much discussion, development and debate, and merit an entire book to themselves. Nevertheless, for the purposes of this work, I am focusing only on the consensus layer cryptoeconomic stack.
+请注意，这些部分的讨论在孤立地考虑共识层。现在是后合并时期，这已不再是全部情况。除了协议生成的奖励，以太坊质押者现在还可以从交易费用的小费和 [MEV](https://ethereum.org/en/developers/docs/mev/)（最大可提取价值）中获利。 将来，他们可能还能从再质押（[restaking](https://docs.eigenlayer.xyz/overview/readme)）中获利。所有这些都会改动协议的激励机制。例如，一个验证者为了获得约 [2000 万美元的 MEV 收入](https://collective.flashbots.net/t/post-mortem-april-3rd-2023-mev-boost-relay-incident-and-related-timing-issue/1540)，付出被[罚没](https://beaconcha.in/validator/552061) 1 个以太币的代价，尽管根据协议规则，这样做是不诚实的，但这也是经济理性的行为。这些事情的影响是许多讨论、发展和辩论的主题，值得专门去写一本书。然而，出于本书的目的，我只关注共识层的加密经济堆栈。
 
-#### See also
+#### 另见
 
-Vlad Zamfir's memoirs on the development of the Casper Protocol are not only a great read, but a good introduction to the challenges of designing a proof of stake protocol. They discuss the background to many of the design decisions that led, eventually, to the protocol we see today. [Part 1](https://medium.com/@Vlad_Zamfir/the-history-of-casper-part-1-59233819c9a9), [Part 2](https://medium.com/@Vlad_Zamfir/the-history-of-casper-chapter-2-8e09b9d3b780), [Part 3](https://medium.com/@Vlad_Zamfir/the-history-of-casper-chapter-3-70fefb1182fc), [Part 4](https://medium.com/@Vlad_Zamfir/the-history-of-casper-chapter-4-3855638b5f0e), [Part 5](https://medium.com/@Vlad_Zamfir/the-history-of-casper-chapter-5-8652959cef58).
+Vlad Zamfir 关于 Casper 协议开发的回忆录不仅是一本很棒的读物，也是对设计权益证明协议所面临挑战的很好介绍。他们讨论了许多设计决策的背景，这些决策最终导致了我们今天看到的协议。[第一部分](https://medium.com/@Vlad_Zamfir/the-history-of-casper-part-1-59233819c9a9), [第二部分](https://medium.com/@Vlad_Zamfir/the-history-of-casper-chapter-2-8e09b9d3b780), [第三部分](https://medium.com/@Vlad_Zamfir/the-history-of-casper-chapter-3-70fefb1182fc), [第四部分](https://medium.com/@Vlad_Zamfir/the-history-of-casper-chapter-4-3855638b5f0e), [第五部分](https://medium.com/@Vlad_Zamfir/the-history-of-casper-chapter-5-8652959cef58)。
 
-Much of the material in the following sections is also covered in the more recent report by Umberto Natale of Chorus One, [Analysing Ethereum Cryptoeconomics: the validator's perspective](https://docs.google.com/document/d/1r640UQOm2z-Q9nsJzqBq3BVgCtTL1_Yc7WnPp4jEBgk/edit).
+Chorus One 的 Umberto Natale 最近发表的报告《以太坊加密经济学分析：验证者的视角》（[Analysing Ethereum Cryptoeconomics: the validator's perspective](https://docs.google.com/document/d/1r640UQOm2z-Q9nsJzqBq3BVgCtTL1_Yc7WnPp4jEBgk/edit)）也涵盖了下文的大部分信息。
 
-### Staking <!-- /part2/incentives/staking/ -->
+### 质押 <!-- /part2/incentives/staking/ -->
 
 <div class="summary">
 
-  - The stake in proof of stake provides three things: an anti-Sybil mechanism, an accountability mechanism, and an incentive alignment mechanism.
-  - The 32&nbsp;ETH stake size is a trade-off between network overhead, number of validators, and time to finality.
-  - Combined with the Casper FFG rules, stakes provide economic finality: a quantifiable measure of the security of the chain.
+  - 在权益证明中，质押提供三个功能：反女巫机制、问责机制和激励机制。
+  - 32 个以太币的质押数量是在网络开销、验证者数量和最终确定时间之间的权衡。
+  - 结合 Casper FFG 规则，质押提供了经济上的最终确定性：这是链安全性的可量化的衡量标准。
 
 </div>
 
-#### Introduction
+#### 引言
+质押是以太坊 2 协议的完整参与者必须锁定的存款。质押永久存放在以太坊链上的存款合约（[deposit contract](/part2/deposits-withdrawals/contract/)）中，并反映在验证者在信标链上的记录余额中。质押使验证者有权提议区块、对区块和检查点进行认证，并参与同步委员会，以换取积累到其信标链余额中的奖励。
 
-A stake is the deposit that a full participant of the Ethereum&nbsp;2 protocol must lock up. The stake is lodged permanently in the [deposit contract](/part2/deposits-withdrawals/contract/) on the Ethereum chain, and reflected in a balance in the validator's record on the beacon chain. The stake entitles a validator to propose blocks, to attest to blocks and checkpoints, and to participate in sync committees, all in return for rewards that accrue to its beacon chain balance.
+在以太坊 2 中，质押有三个关键作用。
 
-In Ethereum&nbsp;2 the stake has three key roles.
-
-First, the stake is an anti-Sybil mechanism. Ethereum&nbsp;2 is a permissionless system that anyone can participate in. Permissionless systems must find a way to allocate influence among their participants. There must be some cost to creating an identity in the protocol, otherwise individuals could cheaply create vast numbers of duplicate identities and overwhelm the chain. In proof of work chains a participant's influence is proportional to its hash power, a limited resource[^fn-one-cpu-one-vote]. In proof of stake chains participants must stake some of the chain's coin, which is again a limited resource. The influence of each staker in the protocol is proportional to the stake that they lock up.
+首先，质押是一个反女巫机制。以太坊 2 是一个任何人都可参与的无需许可的系统。无需许可的系统必须找到一种在其参与者之间分配影响力的方法。在协议中创建身份必须付出一定的代价，否则个人可以廉价地创建大量重复身份，使链不堪重负。在工作量证明链中，参与者的影响力与其哈希能力——一种有限资源[^fn-one-cpu-one-vote]——成正比。在权益证明链中，参与者必须质押一些该链的原生货币，这也是一种有限资源。每个质押者在协议中的影响力与他们锁定的质押成正比。
 
 [^fn-one-cpu-one-vote]: In the Bitcoin white paper, Satoshi wrote that, "Proof-of-work is essentially one-CPU-one-vote", although ASICs and mining farms have long subverted this. Proof of stake is one-stake-one-vote.
 
-Second, the stake provides accountability. There is a direct cost to acting in a harmful way in Ethereum&nbsp;2. Specific types of harmful behaviour can be uniquely attributed to the stakers that performed them, and their stakes can be reduced or taken away entirely in a process called [slashing](/part2/incentives/slashing/). This allows us to quantify the [economic security](#economic-finality) of the protocol in terms of what it would cost an attacker to do something harmful.
+其次，质押提供了问责（accountability）。在以太坊 2 中，有害的行为是有直接成本的。特定类型的有害行为可被唯一地归因于实施这些行为的质押者，他们的质押可以通过一个叫做“罚没（[slashing](/part2/incentives/slashing/)）”的过程被减少或完全取消。这样，我们就可以根据攻击者做出有害行为的成本来量化协议的[经济安全性](#economic-finality)。
 
-Third, the stake aligns incentives. Stakers necessarily own some of what they are guarding, and are incentivised to guard it well.
+第三，质押使激励一致。质押者必然拥有他们所守护的事物的一部分，并受到激励去做好守护。
 
-#### Stake size
+#### 质押大小
 
-The size of the stake in Ethereum&nbsp;2 is 32&nbsp;ETH per validator.
+在以太坊 2 中，每个验证者的质押大小为 32 个以太币。
 
-This value is a compromise. It tries to be as small as possible to allow wide participation, while remaining large enough that we don't end up with too many validators. In short, if we reduced the stake, we would potentially be forcing stakers to run more expensive hardware on higher bandwidth networks, thus increasing the forces of centralisation.
+这是一个折中值。它既要尽可能小，以允许广泛参与，又要足够大，以避免验证者过多。简而言之，如果我们减少质押，就有可能迫使质押者在带宽更高的网络上运行更昂贵的硬件，从而增加中心化的力量。
 
-The main practical constraint on the number of validators in a monolithic[^fn-monolithic] L1 blockchain is the messaging overhead required to achieve finality. Like other [PBFT](https://pmg.csail.mit.edu/papers/osdi99.pdf)-style consensus algorithms, Casper&nbsp;FFG requires two rounds of all-to-all communication to achieve finality. That is, for all nodes to agree on a block that will never be reverted.
+对单体化[^fn-monolithic]的 L1 区块链中，验证者数量的主要实际限制因素是实现最终确定性所需的消息传递开销。与其他 [PBFT](https://pmg.csail.mit.edu/papers/osdi99.pdf) 风格的共识算法一样，Casper FFG 需要两轮全体对全体的通信才能实现最终确定性。也就是说，所有节点要就一个永远不会被回滚的区块达成一致。
 
 <!-- markdownlint-disable code-block-style ul-indent -->
 [^fn-monolithic]: A monolithic blockchain is one in which all nodes process all information, be it transactions or consensus-related. Pretty much all blockchains to date, including Ethereum, have been monolithic. One way to escape the scalability trilemma is to go "modular". This is the intent behind Ethereum's [rollup-centric roadmap](https://ethereum-magicians.org/t/a-rollup-centric-ethereum-roadmap/4698).
@@ -3132,13 +3133,13 @@ The main practical constraint on the number of validators in a monolithic[^fn-mo
     - Well worth a read: Polynya's entertaining (if a little grumpy), [The horrific inefficiencies of monolithic blockchains](https://polynya.mirror.xyz/3-omFNK3uU0iAaYSpFz0f9rCvrDBjx0H3XOSDGXU8hY).
 <!-- markdownlint-enable code-block-style ul-indent -->
 
-Following Vitalik's [notation](https://notes.ethereum.org/@vbuterin/rkhCgQteN#Why-32-ETH-validator-sizes), if we can tolerate a network overhead of $\omega$ messages per second, and we want a time to finality of $f$, then we can have participation from at most $n$ validators, where
+按照 Vitalik 的[记法](https://notes.ethereum.org/@vbuterin/rkhCgQteN#Why-32-ETH-validator-sizes)，如果我们可以承受每秒 $\omega$ 条消息的网络开销，希望到达最终确定性的时间为 $f$，那么最多可以有 $n$ 个验证者的参与，其中
 
 $$
 n \le \frac{\omega f}{2}
 $$
 
-We would like to keep $\omega$ small to allow the broadest possible participation by validators, including those on slower networks. And we would like $f$ to be as short as possible since a shorter time to finality is much more useful than a longer time[^fn-finality-utility]. Taken together, these requirements imply a cap on $n$, the total number of validators.
+我们希望 $\omega$ 的值是小的，以便让验证者尽可能广泛地参与，包括那些速度较慢的网络中的验证者。我们希望 $f$ 尽可能短，因为较短的最终确定性时间比较长的要有用得多[^fn-finality-utility]。这些要求综合起来，就意味着对 $n$，即验证者总数的限制。
 
 <!-- markdownlint-disable code-block-style -->
 [^fn-finality-utility]: In an [unfinished paper](https://github.com/ethereum/research/blob/master/papers/casper-economics/casper_economics_basic.pdf) Vitalik attempts to quantify the "protocol utility" for different times to finality.
@@ -3148,7 +3149,7 @@ We would like to keep $\omega$ small to allow the broadest possible participatio
     He goes on to make a justification for this (p.10).
 <!-- markdownlint-enable code-block-style -->
 
-This is a classic scalability trilemma. Personally, I don't find these pictures of triangles very intuitive, but they have become the canonical way to represent the trade-offs.
+这是一个经典的可扩展性三难问题（scalability trilemma）。个人而言，我并不觉得这些三角形图片很直观，但它们已经成为表示其中权衡的标准方式。
 
 <a id="img_incentives_scalability_trilemma"></a>
 <figure class="diagram" style="width: 60%">
@@ -3157,150 +3158,149 @@ This is a classic scalability trilemma. Personally, I don't find these pictures 
 
 <figcaption>
 
-A version of the scalability trilemma: pick any two.
+可扩展性三难问题的一个版本：选择任意两个。
 
 </figcaption>
 </figure>
 
-1. Our ideal might be to have high participation (large $n$) with low overhead (low $\omega$) &ndash; lots of stakers on low-spec machines &ndash;, but finality would take a long time since message exchange would be slow.
-2. We could have very fast finality and high participation, but would need to mandate that stakers run high spec machines on high bandwidth networks in order to participate.
-3. Or we could have fast finality on reasonably modest machines by severely limiting the number of participants.
+1. 理想状况可能是具有高参与度（大 $n$）和低开销（小 $\omega$）——许多在低规格的机器上的质押者——但最终确定性将需要很长时间，因为消息交换会很慢。
+2. 我们可以有非常快的最终确定性和高参与度，但需要质押者在高带宽网络上运行高规格机器才能参与。
+3. 或者我们可以通过严格限制参与者数量，在相对适度的机器上实现快速的最终确定性。
 
-It's not clear exactly how to place Ethereum&nbsp;2 on such a diagram, but we definitely favour participation over time to finality: maybe "x" marks the spot. One complexity is that participation and overhead are not entirely independent: we could decrease the stake to encourage participation, but that would increase the hardware and networking requirements (the overhead), which will tend to reduce the number of people able or willing to participate.[^fn-exercise-triangle]
+目前还不清楚如何将以太坊 2 置于这样的图表中，但我们肯定更倾向于参与，而不是实现最终确定性的时间：也许 “X” 标记出了这个点。一个复杂的问题是，参与和开销不是彼此完全不相关的：我们可以降低质押来鼓励参与，但这会增加硬件和网络要求（开销），而这往往会减少能够或愿意参与的人数。[^fn-exercise-triangle]
 
 [^fn-exercise-triangle]: Exercise for the reader: try placing some of the other monolithic L1 blockchains within the trade-off space.
 
-To put this in concrete terms, the hard limit on the number of validators is the total Ether supply divided by the stake size. With a 32&nbsp;ETH stake, that's about 3.6 million validators today, which is consistent with a time to finality of 768 seconds (two epochs), and a message overhead of 9375 messages per second[^fn-message-overhead]. That's a substantial number of messages per second to handle. However, we don't ever expect _all_ Ether to be staked, perhaps around 10-20%. In addition, due to the use of [BLS aggregate signatures](/part2/building_blocks/signatures/), messages are highly compressed to an asymptotic 1-bit per validator.
+具体来说，验证者数量的硬性限制是以太币供应总量除以质押大小。以 32 以太币的质押计算，目前约有 360 万验证者，这与 768 秒（两个时段）的最终确定性时间以及每秒 9375 条消息的消息开销一致[^fn-message-overhead]。这意味着每秒需要处理大量消息。不过，我们并不期望所有以太币都被质押，也许只有 10-20% 左右。此外，由于使用了 BLS 聚合签名（[BLS aggregate signatures](/part2/building_blocks/signatures/)），消息大小被高度压缩至每个验证者近似于 1 位。
 
 [^fn-message-overhead]: Vitalik's [estimate](https://notes.ethereum.org/@vbuterin/rkhCgQteN#Why-32-ETH-validator-sizes) of 5461 is too low since he omits the factor of two in the calculation.
 
-Given the capacity of current p2p networks, 32&nbsp;ETH per stake is about as low as we can go while delivering finality in two epochs. Anecdotally, my staking node continually consumes about 3.5mb/s in up and down bandwidth. That's about 30% of my upstream bandwidth on residential ADSL. If the protocol were more any chatty it would rule out home staking for many.
+考虑到当前 p2p 网络的容量，以及在两个时段内实现最终确定性，每一质押  32 个以太币已经是我们能做到的极限。据我所知，我的质押节点持续消耗大约 3.5mb/s 的上下行带宽，差不多是我家 ADSL 上行带宽的 30%。如果协议更“健谈”，很多人就不能用家庭网络去进行质押。
 
-An alternative approach might be to [cap the number](https://github.com/ethereum/consensus-specs/issues/2137) of validators active at any one time to put an upper bound on the number of messages exchanged. With something like that in place, we could explore reducing the stake below 32&nbsp;ETH, allowing many more validators to participate, but each participating only on a part-time basis.
+另一种方法可能是对同一时间内活跃的验证者数量[设置上限](https://github.com/ethereum/consensus-specs/issues/2137)，从而对信息交换数量设置上限。有了这样的方法，我们就可以探索将质押降低到 32 个以太币以下的方案，让更多的验证者参与进来，但每个验证者只能以“兼职”的方式参与。
 
-Note that this analysis overlooks the distinction between nodes (which actually have to handle the messages) and validators (a large number of which can be hosted by a single node). A design goal of the Ethereum&nbsp;2 protocol is to minimise any economies of scale, putting the solo-staker on as equal as possible footing with staking pools. Thus, we ought to be careful to apply our analyses to the most distributed case, that of one-validator per node.
+请注意，这种分析忽略了节点（它必须处理消息）和验证者（单个节点可以托管大量验证者）之间的区别。以太坊 2 协议的一个设计目标是最大限度地减少规模经济，使个体质押者与质押池之间尽可能平等。因此，将分析应用于最分布式的情况时（即每个节点只有一个验证者）我们应该小心。
 
-Fun fact: the original hybrid Casper FFG PoS proposal ([EIP-1011](https://github.com/ethereum/EIPs/blob/master/EIPS/eip-1011.md)) called for a minimum deposit size of 1500&nbsp;ETH as the system design could handle up to around 900 active validators. While 32&nbsp;ETH now represents a great deal of money for most people, decentralised staking pools that can take less than 32&nbsp;ETH are now becoming available.
+趣事：最初的“混合 Casper FFG 权益证明提案（[EIP-1011](https://github.com/ethereum/EIPs/blob/master/EIPS/eip-1011.md)）”要求最低存款额为 1500 个以太币，因为系统设计可以处理多达约 900 个活跃验证者。虽然现在对大多数人来说， 32 个以太币都是一笔巨款，但现在也有了可接受少于 32 个以太币的去中心化质押池。
 
-#### Economic finality
+#### 经济最终确定性
 
-The requirement for validators to lock up stakes, and the introduction of slashing conditions allows us to quantify the security of the beacon chain in some sense.
+要求验证者锁定质押，并引入罚没条件，这些使我们能够在某种意义上量化信标链的安全性。
 
-The main attack we wish to prevent is one that rewrites the history of the chain. The cost of such an attack parameterises the security of the chain. In proof of work, this is the cost of acquiring an overwhelming (51%) of hash power for a period of time. Interestingly, a successful 51% attack in proof of work costs essentially nothing, since the attacker claims all the block rewards on the rewritten chain.
+我们希望阻止的主要攻击是改写信标链历史。这种攻击的成本使得信标链的安全性被参数化。在工作量证明中，这就是在一段时间内获得压倒性（51%）哈希能力的成本。有趣的是，在工作量证明中，成功的 51% 攻击基本上不需要付出任何代价，因为攻击者可以认领被重写的链上的所有区块奖励。
 
-In Ethereum's proof of stake protocol we can measure security in terms of _economic finality_. That is, if an attacker wished to revert a finalised block on the chain, what would be the cost?
+在以太坊的权益证明协议中，我们可以用经济最终确定性去衡量安全性。也就是说，如果攻击者想要回滚链上的一个已被最终确定的区块，成本会是什么？
 
-This turns out to be easy to quantify. To quote Vitalik's [Parametrizing Casper](https://medium.com/@VitalikButerin/parametrizing-casper-the-decentralization-finality-time-overhead-tradeoff-3f2011672735),
+这实际上很容易量化。引用 Vitalik 的《参数化 Casper》（[Parametrizing Casper](https://medium.com/@VitalikButerin/parametrizing-casper-the-decentralization-finality-time-overhead-tradeoff-3f2011672735)）：
 
-> State $H_1$ is economically finalized if enough validators sign a message attesting to $H_1$, with the property that if both $H_1$ and a conflicting $H_2$ are finalized, then there is evidence that can be used to prove that at least $\frac{1}{3}$ of validators were malicious and therefore destroy their entire deposits.
+> 如果足够多的验证者签署了认证 $H_1$ 的消息，那么状态 $H_1$ 在经济上就被最终确定了。此时有了这一特性：如果 $H_1$ 和一个与其相冲突的 $H_2$ 都被最终确定，那么就有证据证明至少 $\frac{1}{3}$ 的验证者是恶意的，并销毁他们的全部存款。
 
-Ethereum's proof of stake protocol has this property. In order to finalise a checkpoint ($H_1$), two-thirds of the validators must have attested to it. To finalise a conflicting checkpoint ($H_2$) requires two-thirds of validators to attest to that as well. Thus, at least one-third of validators must have attested to both checkpoints. Since individual validators sign their attestations, this is both detectable and attributable: it's easy to submit the evidence on-chain that those validators contradicted themselves, and they can be punished by the protocol.
+以太坊的权益证明协议具有这个属性。为了最终确定一个检查点（$H_1$），三分之二的验证者必须对其进行认证。要最终确定一个相冲突的检查点（$H_2$）也需要三分之二的验证者对其进行认证。因此，一定是至少有三分之一的验证者对这两个检查点都进行了认证。由于每个验证者都会在自己的认证上签名，因此这种情况既可以被发现，也可以被归咎：很容易就能在链上提交证据，证明这些验证者自相矛盾，而他们也会受到协议的惩罚。
 
-If one-third of validators were to be slashed simultaneously, they would have their entire effective balances burned (up to 32&nbsp;ETH each). At that point with, say, fifteen million ETH staked in total, the cost of reverting a finalised block would be five million of the attackers' ETH being permanently burned and the attackers being expelled from the network.
+如果三分之一的验证者同时被罚没，他们的全部有效余额都将被烧毁（每个人最多 32 个以太币）。在这种情况下，假设总共有 1500 万个以太币被质押，那么回滚一个已经最终确定的区块的成本是永久销毁攻击者的 500 万个以太币，并将攻击者驱逐出网络。
 
-It is obligatory at this point to quote (or paraphrase) Vlad Zamfir: comparing proof of stake to proof of work, "it's as though your ASIC farm burned down if you participated in a 51% attack".
+这时有必要引用（或转述）Vlad Zamfir 的话：如果用工作量证明去描述权益证明，“这就像是如果你参与 51% 攻击，你的 ASIC 农场就会被烧毁一样”。
 
-For more on the mechanics of economic finality, see below under [Slashing](/part2/incentives/slashing/), and for more on the rationale and justification, see the section on [Casper FFG](/part2/consensus/casper_ffg/).
+想要了解关于经济最终确定性机制的更多信息，可以参阅下文“[罚没](/part2/incentives/slashing/)”部分；想要知道相关原理和依据，请参阅 “[Casper FFG](/part2/consensus/casper_ffg/)” 部分。
 
-#### See also
+#### 另见
 
-  - [Parametrizing Casper: the decentralization/finality time/overhead tradeoff](https://medium.com/@VitalikButerin/parametrizing-casper-the-decentralization-finality-time-overhead-tradeoff-3f2011672735) presents some early reasoning about the trade-offs for different stake sizes. Things have moved on somewhat since then, most notably with the advent of BLS aggregate signatures.
-  - [Why 32&nbsp;ETH validator sizes?](https://notes.ethereum.org/@vbuterin/rkhCgQteN#Why-32-ETH-validator-sizes) from Vitalik's Serenity Design Rationale.
+  - 《参数化 Casper：权衡去中心化、最终确定性的时间、与开销》（[Parametrizing Casper: the decentralization/finality time/overhead tradeoff](https://medium.com/@VitalikButerin/parametrizing-casper-the-decentralization-finality-time-overhead-tradeoff-3f2011672735)）呈现了对不同质押规模的权衡的早期推理。自那以后，情况有所发展，最显著的是 BLS 聚合签名的出现。
+  - Vitalik 的《宁静升级的设计原理》（Serenity Design Rationale）中的“为什么验证者规模是 32 个以太币？（[Why 32&nbsp;ETH validator sizes?](https://notes.ethereum.org/@vbuterin/rkhCgQteN#Why-32-ETH-validator-sizes)）”
+  - Vitalik 关于实现单个时隙最终确定性（[single slot finality](https://notes.ethereum.org/@vbuterin/single_slot_finality)）的讨论文档从另一个角度探讨了参与、开销、以及最终确定性的权衡空间。
 
-Vitalik's discussion document around achieving [single slot finality](https://notes.ethereum.org/@vbuterin/single_slot_finality) looks at the participation/overhead/finality trade-off space from a different perspective.
-
-### Balances <!-- /part2/incentives/balances/ -->
+### 余额 <!-- /part2/incentives/balances/ -->
 
 <div class="summary">
 
-  - Each validator maintains an _effective balance_ in addition to its actual balance.
-  - The validator's influence in the protocol is proportional to its effective balance, as are its rewards and penalties.
-  - The effective balance tracks the validator's actual balance, but is designed to change much more rarely. This is an optimisation.
-  - A validator's effective balance is capped at 32&nbsp;ETH.
+  - 除了实际余额外，每个验证者还维护一种有效余额（effective balance）。
+  - 验证者在协议中的影响力与其有效余额成正比，对验证者的奖励和惩罚也是如此。
+  - 有效余额跟踪验证者的实际余额，但在设计进行了优化，有效余额变化的频率要比实际余额低得多。
+  - 验证者有效余额的上限为 32 个以太币。
 
 </div>
 
-#### Introduction
+#### 引言
 
-The beacon chain maintains two separate records of each validator's balance: its actual balance and its effective balance.
+对于每个验证者的余额，信标链会维护两份独立的记录：实际余额和有效余额。
 
-A validator's actual balance is straightforward. It is the sum of any deposits made for it via the deposit contract, plus accrued beacon chain rewards, minus accrued penalties and withdrawals. The actual balance is rapidly changing, being updated at least once per epoch for all active validators, and every slot for sync committee participants. It is also fine-grained: units of the actual balance are Gwei, that is, $10^{-9}$&nbsp;ETH.
+验证者的实际余额直截了当，它是：通过存款合约而为验证者存入的资金的总和，加上累积的信标链奖励，减去累积的惩罚和提款。实际余额的变化很快，所有活跃验证者的实际余额至少每个时段会更新一次，同步委员会参与者的实际余额则会每个时隙更新一次。它的颗粒度也很细：实际余额的单位是 Gwei，即 $10^{-9}$ 个以太币。
 
-A validator's effective balance is derived from its actual balance in such a way that it changes much more slowly. To achieve this, the units of effective balance are whole ETH (see [`EFFECTIVE_BALANCE_INCREMENT`](/part3/config/preset/#effective_balance_increment)), and changes to the effective balance are subject to [hysteresis](#hysteresis).
+验证器的有效余额是根据其实际余额推导出来的，其变化速度要慢得多。为了实现这一点，有效余额的单位是整数的以太币（参见 [`EFFECTIVE_BALANCE_INCREMENT`](/part3/config/preset/#effective_balance_increment)），有效余额的变化受迟滞（[hysteresis](#hysteresis)）的约束。
 
-Using the effective balance achieves two goals, one to do with economics, the other purely engineering.
+使用有效余额实现了两个目标，一个与经济有关，另一个纯粹是工程学。
 
-#### Economic aspects of effective balance
+#### 有效余额的经济学面向
 
-The effective balance was first introduced to represent the "[maximum balance at risk](https://github.com/ethereum/consensus-specs/pull/162#issuecomment-441759461)" for a validator, capped at 32&nbsp;ETH. A validator's actual balance could be much higher, for example if a double deposit had been accidentally made a validator would have an actual balance of 64&nbsp;ETH but an effective balance of only 32&nbsp;ETH. We could envisage a protocol in which each validator has influence proportional to its uncapped actual balance, but that would complicate committee membership among other things. Instead, we cap the effective balance and require stakers to deposit for more validators if they wish to stake more.[^fn-eip-7251]
+有效余额的引入最初是为了表示验证者的“最大风险余额（[maximum balance at risk](https://github.com/ethereum/consensus-specs/pull/162#issuecomment-441759461)）”，上限为 32 个以太币。验证者的实际余额可能要高得多，例如，如果不小心存入了两笔资金，验证者的实际余额为 64 个以太币，但有效余额只有 32 个。我们可以设想一个协议，让每个验证者的影响力与其上不封顶的实际余额成正比，但这样会使委员会成员的组成变得复杂。相反，我们设置了有效余额的上限，如果质押者希望进行更多质押，则要求其向更多验证者账户中存款。[^fn-eip-7251]
 
-[^fn-eip-7251]: There is, in fact, a proposal to [increase the maximum effective balance](https://notes.ethereum.org/@mikeneuder/eip-7251-faq) to 2048 ETH.
+[^fn-eip-7251]: 事实上，有一个提案提议[将最大有效余额增加到](https://notes.ethereum.org/@mikeneuder/eip-7251-faq) 2048 个以太币。
 
-The scope of effective balance quickly grew, and now it completely represents the weight of a validator in the consensus protocol.
+有效余额的范围迅速扩大，如今它完全代表了验证者在共识协议中的权重。
 
-All the following consensus-related quantities are proportional to the effective balance of a validator:
+以下所有与共识相关的量都与验证者的有效余额成正比：
 
-  - the probability of being [selected](/part3/helper/misc/#def_compute_proposer_index) as the beacon block proposer;
-  - the validator's weight in the LMD-GHOST [fork choice rule](/part3/forkchoice/phase0/#get_weight);
-  - the validator's weight in the justification and finalisation [calculations](/part3/transition/epoch/#def_weigh_justification_and_finalization); and
-  - the probability of being [included](/part3/helper/accessors/#def_get_next_sync_committee_indices) in a sync committee.
+  - [被选为](/part3/helper/misc/#def_compute_proposer_index)信标区块提议者的概率；
+  - 验证者在 LMD-GHOST [分叉选择规则](/part3/forkchoice/phase0/#get_weight)中的权重；
+  - 验证者在合理化和最终确定性的[计算](/part3/transition/epoch/#def_weigh_justification_and_finalization)中的权重；以及
+  - 被[纳入](/part3/helper/accessors/#def_get_next_sync_committee_indices)同步委员会的概率。
 
-Correspondingly, the following rewards, penalties, and punishments are also weighted by effective balance:
+相应地，以下奖惩措施也根据有效余额进行加权：
 
-  - the [base reward](/part3/transition/epoch/#def_get_base_reward) for a validator, in terms of which the attestation rewards and penalties are calculated;
-  - the [inactivity penalties](/part2/incentives/inactivity/) applied to a validator as a consequence of an inactivity leak; and
-  - both the [initial](/part2/incentives/slashing/#the-initial-penalty) slashing penalty and the [correlated](/part2/incentives/slashing/#the-correlation-penalty) slashing penalty.
+  - 验证者的基础奖励（[base reward](/part3/transition/epoch/#def_get_base_reward)）（根据该奖励计算认证的奖励和惩罚）；
+  - 因怠惰流失（inactivity leak）而导致的怠惰惩罚（[inactivity penalties](/part2/incentives/inactivity/)）；以及
+  - [初始](/part2/incentives/slashing/#the-initial-penalty)罚没惩罚和[相关](/part2/incentives/slashing/#the-correlation-penalty)罚没惩罚。
 
-However, the block proposer reward is not scaled in proportion to the proposer's effective balance. Since a validator's probability of being selected to propose is proportional to its effective balance, the reward scaling with effective balance is already taken care of. For the same reason sync committee rewards are not proportional to the participants' effective balances either.
+不过，区块提议者的奖励并不与提议者的有效余额成比例。由于验证者被选中去提议区块的概率与其有效余额成正比，因此奖励与有效余额的比例已经得到了考虑。出于同样的原因，同步委员会的奖励也不与参与者的有效余额成比例。
 
-#### Engineering aspects of effective balance
+#### 有效余额的工程学面向
 
-We could achieve all the above simply by using validators' actual balances as their weights, capped at 32&nbsp;ETH. However, we can gain significant performance benefits by basing everything on effective balances instead.
+我们只需使用验证者的实际余额作为权重（上限为 32 个以太币），就能实现上述所有功能。但如果一切以有效余额为基础，我们能获得显著的性能优势。
 
-For one thing, effective balances are [updated](/part3/transition/epoch/#def_process_effective_balance_updates) only once per epoch, which means that we need only calculate things like the [base reward per increment](/part2/incentives/issuance/#the-base-reward-per-increment) once then cache the result for the whole epoch, irrespective of any changes in actual balances.
+首先，有效余额在每个时段只[更新](/part3/transition/epoch/#def_process_effective_balance_updates)一次，这意味着我们只需计算每次增量的基础奖励（[base reward per increment](/part2/incentives/issuance/#the-base-reward-per-increment)），然后缓存整个时段的结果，而无需考虑实际余额的任何变化。
 
-But the main feature of effective balances is that they are designed to change much more rarely than that. This is achieved by making them very [granular](#increments), and by applying [hysteresis](#hysteresis) to any updates.
+但有效余额的主要特点是，它们的变化要比这个频率小得多。要做到这一点，就必须使其具有非常高的[颗粒度](#increments)，并对任何更新都采用[迟滞机制](#hysteresis)。
 
-One of the big performance challenges in calculating the beacon chain state transition is generating the hash tree root of the entire state. The [Merkleization](/part2/building_blocks/merkleization/) process allows parts of the state that have not been changed to be cached, providing a significant performance boost.
+对信标链状态转换的计算的一大性能挑战是生成整个状态的哈希树根。默克尔化（[Merkleization](/part2/building_blocks/merkleization/)）过程允许去缓存状态中未发生变化的部分，从而大大提高性能。
 
-The list of validator records in the state is a large data structure. Were we to store the validators' actual balances within those records they would be frequently changing, and the whole data structure would need to be re-hashed at least once per epoch.
+状态中的验证者记录列表是一个大型数据结构。如果我们将验证器者的实际余额存储在这些记录中，它们就会经常变化，整个数据结构至少需要每个时段被重新散列一次。
 
-The [first attempt](https://github.com/ethereum/consensus-specs/pull/317/files) at addressing this simply moved the validators' balances out of the validator records into a dedicated list in the state. This reduces the amount of re-hashing required as the whole validator list does not need to be re-hashed when only the validators' balances change.
+解决这个问题的[第一种方法](https://github.com/ethereum/consensus-specs/pull/317/files)就是直接将验证者的余额从验证者记录中移出，放到状态中的另一个专用列表中。这样就减少了重新散列的次数，因为在仅有验证者的余额发生变化时，整个验证者列表就不需要被重新散列。
 
-However, that approach led to performance issues elsewhere. Light clients needing information on validators' balances would now need to acquire data from two different parts of the state &ndash; both the validator record and the validator balance list. This requires two Merkle proofs rather than one, significantly increasing their bandwidth costs.
+不过，这也导致了其他方面的性能问题。需要验证者余额信息的轻客户端现在就得从状态的两个不同部分获取数据，即验证者记录和验证者余额列表。这就需要两个而不是一个默克尔证明，进而大大增加了带宽成本。
 
-A way round this is to store a slowly changing version of the balances in the validators' records &ndash; meaning that they need to be re-hashed infrequently &ndash; and to store the fast-changing actual balances in a separate list, a much smaller structure to re-hash.
+解决这个问题的办法是，在验证者记录中存储一个缓慢变化的余额版本——这意味着不需要经常重新散列——而将快速变化的实际余额存储在一个单独的列表中。这样的话，重新散列的结构要小得多。
 
-From the notes for an [early attempt](https://github.com/ethereum/consensus-specs/issues/685) at a kind of effective balance implementation:
+下方引文出自为实现有效余额的一个[早期尝试](https://github.com/ethereum/consensus-specs/issues/685)：
 
-> [Effective balances are an] "approximate balance" that can be used by light clients in the `validator_registry`, reducing the number of Merkle branches per validator they need to download from 3 to 2 (actually often from ~2.01 to ~1.01, because when fetching a committee the Merkle branches in active_index_roots are mostly shared), achieving a very significant decrease in light client bandwidth costs
+>【有效余额是一种】“近似的余额”，可供 `validator_registry` 中的轻客户端使用，从而将每个验证者需要下载的默克尔分支数量从 3 个减少到 2 个（实际上通常是从 ~2.01 个减少到 ~1.01 个，因为在获取委员会时，active_index_roots 中的默克尔分支大多是共享的），从而显著降低轻客户端的带宽成本。
 
-The point is that light clients will not need to access the list of actual balances that is stored separately in state, only the validator records they were downloading anyway.
+重点是，轻型客户端不需要访问单独存储在状态中的实际余额列表，而只需要访问他们反正都会下载的验证者记录。
 
-In summary, adding effective balances to validators' records allows us to achieve two performance goals simultaneously: avoiding the workload of frequently re-hashing the validator list in the state while not increasing the workload of light clients.
+总之，在验证者记录中添加有效余额让我们能同时实现两个性能目标：避免在状态中频繁地重新散列验证者列表，同时不增加轻客户端的工作量。
 
-##### Increments
+##### 增量
 
-Although effective balances are denominated in Gwei they can only be whole multiples of [`EFFECTIVE_BALANCE_INCREMENT`](/part3/config/preset/#effective_balance_increment), which is 1&nbsp;ETH ($10^9$&nbsp;Gwei). Actual balances can be any number of Gwei.
+尽管有效余额以 Gwei 为记录单位，但它们只能是 [`EFFECTIVE_BALANCE_INCREMENT`](/part3/config/preset/#effective_balance_increment) ——即 1 以太币（ $10^9$ Gwei）——的整数倍。实际余额可以是任意数量的 Gwei。
 
-This multiple is known in the spec as an "increment" and shows up in places like calculating the [base reward](/part3/transition/epoch/#def_get_base_reward_per_increment), and other rewards and penalties calculations. Being a handy 1&nbsp;ETH, it's easy to mentally substitute "Ether" for "increment" to gain some intuition.
+在规范中，这个倍数被称为“增量（increment）”，在计算[基础奖励](/part3/transition/epoch/#def_get_base_reward_per_increment)以及其他奖励和惩罚时会用到。由于 1 以太币的计算很顺手，我们可以在心里将“以太币”替换为“增量”，以便更直观理解它。
 
-It would probably be cleaner to store effective balance in terms of increments instead of Gwei. It would certainly reduce the amount of dividing and multiplying by `EFFECTIVE_BALANCE_INCREMENT` that goes on, and the associated danger of [arithmetic overflows](https://github.com/ethereum/consensus-specs/pull/1286). But the current version evolved over time, and it would be intrusive and risky to go back and change things now.
+如果将有效余额以增量而非 Gwei 的形式存储，可能会更清晰。这样做肯定会减少因 `EFFECTIVE_BALANCE_INCREMENT` 而进行的除法和乘法运算，以及相关的[算术溢出](https://github.com/ethereum/consensus-specs/pull/1286)风险。但现行版本是随着时间演变而来的，现在回头改变可能会带来风险和不便。
 
-##### Hysteresis
+##### 迟滞
 
-Effective balances are guaranteed to vary much more slowly than actual balances by adding [hysteresis](https://en.wikipedia.org/wiki/Hysteresis) to their calculation.
+通过在计算中加入[迟滞](https://en.wikipedia.org/wiki/Hysteresis)，有效余额的变化速度必然比实际余额慢得多。
 
-In our context, hysteresis means that if the effective balance is 31&nbsp;ETH, the actual balance must rise to 32.25&nbsp;ETH to trigger an effective balance update to 32&nbsp;ETH. Similarly, if the effective balance is 31&nbsp;ETH, then the actual balance must fall to 30.75&nbsp;ETH to trigger an effective balance update to 30&nbsp;ETH.
+在我们的情境中，迟滞意味着，如果有效余额是 31 个以太币，实际余额必须上升到 32.25 个以太币，才能触发有效余额更新至 32 个以太币。同样，如果有效余额是 31 个以太币，那么实际余额必须下降到 30.75 个以太币才能触发有效余额更新至 30 个以太币。
 
-The following chart illustrates the behaviour.
+下图说明了这种行为：
 
-  - The actual balance and the effective balance both start at 32&nbsp;ETH.
-  - Initially the actual balance rises. Effective balance is capped at 32&nbsp;ETH, so it does not get updated.
-  - Only when the actual balance falls below 31.75&nbsp;ETH does the effective balance get reduced to 31&nbsp;ETH.
-  - Although the actual balance rises and oscillates around 32&nbsp;ETH, no effective balance update is triggered, and it remains at 31&nbsp;ETH.
-  - Eventually the actual balance rises above 32.25&nbsp;ETH, and the effective balance is updated to 32&nbsp;ETH.
-  - Despite the actual balance falling again, it does not fall below 31.75&nbsp;ETH, so the effective balance remains at 32&nbsp;ETH.
+  - 实际余额和有效余额都从 32 个以太币开始。
+  - 一开始实际余额会上升。有效余额被限制在 32 个以太币，因此不会更新。
+  - 只有当实际余额下降到 31.75 个以太币以下时，有效余额才会减少到 31 个以太币。
+  - 尽管实际余额上升并围绕 32 个以太币波动，但这不会触发有效余额更新，它保持在 31 个以太币。
+  - 最终实际余额上升到 32.25 个以太币以上，有效余额更新为 32 个以太币。
+  - 尽管实际余额再次下降，但没有低于 31.75 个以太币，因此有效余额保持在 32 个以太币。
 
 <a id="img_hysteresis"></a>
 <figure class="chart">
@@ -3309,111 +3309,111 @@ The following chart illustrates the behaviour.
 
 <figcaption>
 
-Illustration of the relationship between the actual balance (solid line) and the effective balance (dashed line) of a validator. The dotted lines are the thresholds at which the effective balance gets updated - the hysteresis.
+对验证者的实际金额（实线）和有效余额（虚线）之间关系的图示。点线是有效余额更新的阈值——迟滞。
 
 </figcaption>
 </figure>
 
 The hysteresis levels are controlled by the [hysteresis parameters](/part3/config/preset/#hysteresis-parameters) in the spec:
 
-| Name | Value |
+| 名字 | 值 |
 | - | - |
 | `HYSTERESIS_QUOTIENT` | `uint64(4)` |
 | `HYSTERESIS_DOWNWARD_MULTIPLIER` | `uint64(1)` |
 | `HYSTERESIS_UPWARD_MULTIPLIER` | `uint64(5)` |
 
-These are applied at the end of each epoch during [effective balance updates](/part3/transition/epoch/#effective-balances-updates). Every validator in the state (whether active or not) has its effective balance updated as follows:
+在每个时段结束时，这些参数被应用于[有效余额的更新](/part3/transition/epoch/#effective-balances-updates)。状态中的每个验证者（无论是否活跃）的有效余额都会按照以下方式更新：
 
-  - If actual balance is less than effective balance minus 0.25 (`=` `HYSTERESIS_DOWNWARD_MULTIPLIER` `/` `HYSTERESIS_QUOTIENT`) increments (ETH), then reduce the effective balance by an increment.
-  - If actual balance is more than effective balance plus 1.25 (`=` `HYSTERESIS_UPWARD_MULTIPLIER` `/` `HYSTERESIS_QUOTIENT`) increments (ETH), then increase the effective balance by an increment.
+  - 如果实际余额小于有效余额减去 0.25 (`=` `HYSTERESIS_DOWNWARD_MULTIPLIER` `/` `HYSTERESIS_QUOTIENT`) 增量（以太币），则将有效余额减少一个增量。
+  - 如果实际余额大于有效余额加上 1.25 (`=` `HYSTERESIS_UPWARD_MULTIPLIER` `/` `HYSTERESIS_QUOTIENT`) 增量（以太币），则将有效余额增加一个增量。
 
-The effect of the hysteresis is that the effective balance cannot change more often than it takes for a validator's actual balance to change by 0.5&nbsp;ETH, which would normally take several weeks or months.
+迟滞功能的后果是，有效余额发生一次变化的时间间隔不会超过验证者的实际余额变化 0.5 个以太币所需的间隔——通常需要几周甚至几个月。
 
-###### An edge case
+###### 一个边缘案例
 
-The hysteresis design gives rise to an interesting [edge case](https://github.com/ethereum/consensus-specs/issues/3049) in deposit processing. The [deposit contract](https://github.com/ethereum/consensus-specs/blob/v1.3.0/solidity_deposit_contract/deposit_contract.sol) allows a staker to deposit any amount greater than or equal to 1&nbsp;ETH; a deposit doesn't have to be the full 32&nbsp;ETH. This allows a stake to be accumulated from multiple deposits. For example, a deposit of 24&nbsp;ETH followed by a separate deposit of 8&nbsp;ETH makes up a full stake and will activate the validator once the second deposit has been processed.
+迟滞设计引出了存款处理中一种有趣的[边缘情况](https://github.com/ethereum/consensus-specs/issues/3049)。[存款合约](https://github.com/ethereum/consensus-specs/blob/v1.3.0/solidity_deposit_contract/deposit_contract.sol)允许质押者存入大于或等于 1 个以太币的任何金额；存款不必恰好是 32 个以太币。这样就允许通过多次存款去累积质押。例如，先存 24 个以太币，再单独存 8 个，这就有了一个完整质押，并将在处理第二笔存款后激活验证者。
 
-The edge case occurs when the final deposit for a validator takes its actual balance to 32&nbsp;ETH or more but, due to the hysteresis, is not sufficient to update its effective balance to 32&nbsp;ETH. For example, after a deposit of 31&nbsp;ETH the validator's actual and effective balances will both be 31&nbsp;ETH. A further deposit of 1&nbsp;ETH will take the validator's actual balance to 32&nbsp;ETH &ndash; which makes it technically eligible for activation &ndash; but will leave its effective balance at 31&nbsp;ETH due to the hysteresis calculation. Thus, it will not be activated.
+这种边缘情况发生在：验证者最终存款的实际余额达到 32 个以太币或更多，但由于迟滞设计，这不足以将其有效余额更新为 32 个以太币。例如，存入 31 个以太币后，验证者的实际余额和有效余额都将是 31 个以太币。再存入 1 个以太币将使验证者的实际余额达到 32 —— 技术上使该验证者有资格被激活 —— 但由于迟滞计算，其有效余额仍将是 31 个以太币。因此它不会被激活。
 
-Validator [418408](https://beaconcha.in/validator/b6c1531b7896e3493806a8dd72fa9c3387f4f7a2fdc565bf1e8e66becb0666f8c3938270a757703e3865619dcc34bf7c#deposits) is an example of this occurring on mainnet. The penultimate deposit of 1&nbsp;ETH took the validator's total balance to 32&nbsp;ETH, but it was not activated until a further deposit of 1&nbsp;ETH was made in order to force an update to effective balance.
+验证者 [418408](https://beaconcha.in/validator/b6c1531b7896e3493806a8dd72fa9c3387f4f7a2fdc565bf1e8e66becb0666f8c3938270a757703e3865619dcc34bf7c#deposits) 就是这种情况在主网上发生的一个例子。它的倒数第二次存款是 1 个以太币，这使验证者的总余额达到 32 个以太币，但直到再次存入 1 个以太币以强制更新有效余额后，该验证者才被激活。
 
 [TODO: link to deposit contract section when written]::
 
-###### A historical note
+###### 一点历史说明
 
-The initial implementation of hysteresis effectively [had](https://github.com/ethereum/consensus-specs/pull/1627#discussion_r387294528) `QUOTIENT = 2`, `DOWNWARD_MULTIPLIER = 0`, and `UPWARD_MULTIPLIER = 3`. This meant that a validator starting with an actual balance of 32&nbsp;ETH, but suffering a minor initial outage, would immediately drop to 31&nbsp;ETH effective balance. To get back to 32&nbsp;ETH effective balance it would need to achieve a 32.5&nbsp;ETH actual balance, and meanwhile the validator's rewards would be 3.1% lower due to the reduced effective balance. This [seemed unfair](https://github.com/ethereum/consensus-specs/issues/1609), and incentivised stakers to "over-deposit" Ether to avoid the risk of an initial effective balance drop, hence the [change](https://github.com/ethereum/consensus-specs/pull/1627) to adopt the current parameters.
+迟滞功能的最初实现实际上[是](https://github.com/ethereum/consensus-specs/pull/1627#discussion_r387294528) `QUOTIENT = 2`, `DOWNWARD_MULTIPLIER = 0`, `UPWARD_MULTIPLIER = 3`。这意味着，如果一个实际余额为 32 个以太币的验证者遭受轻微的初始中断，它的有效余额会立即下降到 31 个以太币。要恢复到 32 个以太币的有效余额，它的实际余额需要达到 32.5 个以太币。同时由于有效余额降低，验证者的奖励会低 3.1%。这[似乎不太公平](https://github.com/ethereum/consensus-specs/issues/1609)，并激励了质押者“过度存入”以太币，以避免初始有效余额下降的风险，因此我们[改为](https://github.com/ethereum/consensus-specs/pull/1627)采用当前参数。
 
-#### See also
+#### 另见
 
-From the spec:
+规范中：
 
-  - The presets that constrain the effective balance, [`MAX_EFFECTIVE_BALANCE`](/part3/config/preset/#max_effective_balance) and [`EFFECTIVE_BALANCE_INCREMENT`](/part3/config/preset/#effective_balance_increment).
-  - The [parameters that control the hysteresis](/part3/config/preset/#hysteresis-parameters).
-  - The function [`process_effective_balance_updates()`](/part3/transition/epoch/#def_process_effective_balance_updates) for the actual calculation and application of hysteresis.
-  - [`Validator`](/part3/containers/dependencies/#validator) objects store the effective balances. The [registry](/part3/containers/state/#registry) in the beacon state contains the list of validators alongside a separate list of the actual balances.
+  - 限制有效余额的预设值，[`MAX_EFFECTIVE_BALANCE`](/part3/config/preset/#max_effective_balance) 和 [`EFFECTIVE_BALANCE_INCREMENT`](/part3/config/preset/#effective_balance_increment)。
+  - [控制迟滞的参数](/part3/config/preset/#hysteresis-parameters)。
+  - 函数 [`process_effective_balance_updates()`](/part3/transition/epoch/#def_process_effective_balance_updates) 被用于实际计算和应用于迟滞。
+  - 验证者（ [`Validator`](/part3/containers/dependencies/#validator)）对象存储有效余额。信标状态中的[注册表](/part3/containers/state/#registry)包含验证者列表以及单独的实际余额列表。
 
-### Issuance <!-- /part2/incentives/issuance/ -->
+### 发行量 <!-- /part2/incentives/issuance/ -->
 
 <div class="summary">
 
-  - Issuance is the amount of new Ether created by the protocol in order to incentivise its participants.
-  - An ideally running beacon chain issues a set amount of Ether per epoch, which is a multiple of the base reward per increment.
-  - Total issuance is proportional to the square root of the number of validators. This is not a completely arbitrary choice.
+  - 发行量是指协议为激励参与者而新创造的以太币的数量。
+  - 在理想运行状态下的信标链每个时段都会发行一定数量的以太币，新发行的以太币数量是每增量的基本奖励的倍数。
+  - 总发行量与验证者数量的平方根成正比。这不是一个完全任意的选择。
 
 </div>
 
-#### Introduction
+#### 引言
 
-There are three views we can take of the rewards given to validators to incentivise their correct participation in the protocol.
+我们可以从三个角度来看待激励验证者正确参与协议所给予的奖励。
 
-First, there is "issuance", which is the overall amount of new Ether generated by the protocol to pay rewards. Second there is the expected reward a validator might earn over the long run. And, third, there is the actual reward that any particular validator earns.
+首先是“发行量”，即协议为支付奖励而生成的新以太币的总量。其次是验证者可能在长期内预期获得的奖励。最后是任何特定验证者实际获得的奖励。
 
-In this section we will look at issuance, and in [the next](/part2/incentives/rewards/) we'll look at rewards. There is a strong relationship between these, though, so the separation is not totally clean.
+在本节中，我们将探讨发行量，而在[下一节](/part2/incentives/rewards/)中，我们将探讨奖励。这两者之间有很强的关联性，因此这一分离中间藕断丝连。
 
-First we must define the fundamental unit of reward, which is the "base reward per increment".
+首先我们必须定义奖励的基本单位，即“每增量基础奖励（base reward per increment）”。
 
-#### The base reward per increment
+#### 每增量基础奖励
 
-All rewards are calculated in terms of a "base reward per increment". This is in turn [calculated](/part3/transition/epoch/#def_get_base_reward_per_increment) as
+所有奖励都是根据“每增量基础奖励”来计算的。这反过来又是被这样[计算](/part3/transition/epoch/#def_get_base_reward_per_increment)的：
 
 ```none
 Gwei(EFFECTIVE_BALANCE_INCREMENT * BASE_REWARD_FACTOR // integer_squareroot(get_total_active_balance(state)))
 ```
 
-We will call the base reward per increment $b$ for brevity. An increment is one unit of effective balance, which is 1&nbsp;ETH ([`EFFECTIVE_BALANCE_INCREMENT`](/part3/config/preset/#effective_balance_increment)), so active validators have up to 32 increments.
+为了简洁起见，我们将每增量基础奖励称为 $b$。一个增量是一个有效余额单位，即 1 个以太币 ([`EFFECTIVE_BALANCE_INCREMENT`](/part3/config/preset/#effective_balance_increment)), 因此活跃验证者最多有 32 个增量。
 
-The [`BASE_REWARD_FACTOR`](/part3/config/preset/#base_reward_factor) is the big knob that we could turn if we wished to change the issuance rate of Ether on the beacon chain. So far it's always been set at 64 which results in the issuance graph we see below. This seems to be working very well and there are no plans to change it.
+如果我们希望改变信标链上以太币的发行率，[`BASE_REWARD_FACTOR`](/part3/config/preset/#base_reward_factor) 是我们可以调整的大旋钮。截至目前，它一直被设置为 64，这带来了我们下面看到的发行图。这个值似乎运行得非常好，我们没有计划改变它。
 
-#### Rewards come from issuance
+#### 奖励来自发行量
 
-Issuance is the amount of new Ether created by the protocol in order to incentivise its participants. The net issuance, after accounting for penalties, burned transaction fees and so forth is sometimes referred to as inflation, or supply growth.
+发行量是协议为了激励其参与者而创建的新以太币数量。在计算了处罚、燃烧的交易费等之后的净发行量有时被称为通货膨胀或供应增长。
 
-Pre-Merge, the Eth1 chain issued new Ether in the form of block and uncle rewards. Since the London upgrade this issuance has been offset in part, or even at times exceeded, by the burning of transaction base fees due to [EIP-1559](https://github.com/ethereum/EIPs/blob/master/EIPS/eip-1559.md).
+合并前，Eth1 链以区块和叔块奖励的形式发行新的以太币。自伦敦升级以来，由于 [EIP-1559](https://github.com/ethereum/EIPs/blob/master/EIPS/eip-1559.md)，这种发行在一定程度上被交易基础费用的燃烧抵消，被燃烧的基础交易费有时甚至会超过新发行的以太币。
 
-Post-Merge, there are no longer any block or uncle rewards issued on the Eth1 chain. But the base fee burn remains. It is possible for the net issuance to become negative &ndash; such that more Ether is destroyed than created[^fn-ultrasound-money] &ndash; at least in the short to medium term. In the longer term, Anders Elowsson argues that there will be [a circulating supply equilibrium](https://ethresear.ch/t/circulating-supply-equilibrium-for-ethereum-and-minimum-viable-issuance-during-the-proof-of-stake-era/10954?u=benjaminion) arising from Ether issuance by proof of stake and Ether destruction due to EIP-1559.
+合并后，Eth1 链不再发行任何区块或叔块奖励。但基础费用的燃烧仍然存在。净发行量有可能变为负数——即销毁的以太币比创建的多[^fn-ultrasound-money]——至少在短期到中期内。从长远来看，Anders Elowsson 认为，由于权益证明的以太币发行和由于 EIP-1559 的以太币销毁，将出现[流通中供应量的均衡](https://ethresear.ch/t/circulating-supply-equilibrium-for-ethereum-and-minimum-viable-issuance-during-the-proof-of-stake-era/10954?u=benjaminion)。
 
 [^fn-ultrasound-money]: You can see Ethereum's current issuance and play with various scenarios at [ultrasound.money](https://ultrasound.money/).
 
-In the following we will be assuming that the beacon chain is running optimally, that is, with all validators performing their duties perfectly. In reality this is impossible to achieve on a permissionless, globally distributed, peer-to-peer network, although the beacon chain has been performing within a few percent of optimally for most of its history. Actual validator rewards and net issuance will certainly be a little or a lot lower, depending on participation rates in the network.
+在以下内容中，我们假设信标链运行良好，即所有验证者都完美地履行其职责。实际上，在一个无需许可的、全球分布式的、点对点网络上，这是不可能实现的，尽管信标链在其大部分历史中一直在近似最佳状态下运行。实际的验证者奖励和净发行量肯定会因网络参与率的不同而有不同程度的降低。
 
-#### Overall issuance
+#### 总体发行量
 
-Under the ideal conditions we are assuming, the beacon chain is designed to issue a total of exactly $Tb$ Gwei in rewards per epoch. Here, $T$ is the total number of increments held by active validators, or in other words the total of all their effective balances in Ether. This is the maximum issuance &ndash; the maximum amount of new Ether &ndash; that the beacon chain can generate. If all $N$ validators have the maximum 32&nbsp;ETH effective balance, then this works out to be $32Nb$ Gwei per epoch in total.
+在我们假设的理想条件下，信标链被设计为每个时段发行总计 $Tb$ 的奖励。这里的 $T$ 是所有活跃验证者持有的增量总数，换句话说，就是他们所有的以太币有效余额总和。这是信标链可以生成的最大发行量（最大数量的新以太币）。如果所有 $N$ 个验证者都有最大 32 个以太币的有效余额，那么这将在每个时段总共发行 $32Nb$ Gwei。
 
-With $365.25 \times 225 = 82181.25$ epochs per year, and [`BASE_REWARD_FACTOR`](/part3/config/preset/#base_reward_factor) $= 64$,
+每年有 $365.25 \times 225 = 82181.25$ 个时段，且  [`BASE_REWARD_FACTOR`](/part3/config/preset/#base_reward_factor) $= 64$,
 
 $$
 \begin{aligned}
-\text{Max issuance per year} &= 82181.25 \times \frac{32 \times 64 \times N}{\sqrt{32 \times 10^9 \times N}} \text{ETH} \\
+\text{每年最大发行量} &= 82181.25 \times \frac{32 \times 64 \times N}{\sqrt{32 \times 10^9 \times N}} \text{ETH} \\
                              &= 940.8659 \sqrt{N} \\
 \end{aligned}
 $$
 
 <!-- Number of validators -->
 
-With 500,000 validators this equates to 665,292&nbsp;ETH per year, plus change. For comparison, under proof of work, Ethereum's block and uncle rewards amounted to almost five million ETH per year.
+对于 50 万个验证者，这相当于每年新发行 665292 个以太币，再加上零头。相比之下，在工作量证明下，以太坊的区块和叔块奖励每年几乎达到了五百万个以太币。
 
-We can graph the maximum issuance as a function of the number of validators. It's just a scaled square root curve.
+我们可以将最大发行量绘制为验证者数量的函数。它只是一个缩放的平方根曲线。
 
 <a id="img_issuance_curve"></a>
 <figure class="chart">
@@ -3422,12 +3422,12 @@ We can graph the maximum issuance as a function of the number of validators. It'
 
 <figcaption>
 
-Maximum annual protocol issuance on the beacon chain as a function of the number of active validators.
+信标链上每年最大协议发行量与有效验证者数量的函数关系。
 
 </figcaption>
 </figure>
 
-#### Validator rewards
+#### 验证者奖励
 
 The goal is to distribute these rewards evenly among validators (continuing to assume that things are running optimally), so that, on a long term average, each validator $i$ earns $n_{i}b$ Gwei per epoch, where $n_i$ is the number of increments it possesses, equivalently its effective balance in Ether. In these terms $T = \sum^{N-1}_{i=0}{n_i}$.
 
@@ -4340,100 +4340,100 @@ It is instructive to revisit the [major incident](https://hackmd.io/@benjaminion
   - [Run the majority client at your own peril!](https://dankradfeist.de/ethereum/2022/03/24/run-the-majority-client-at-your-own-peril.html) by Dankrad Feist.
   - [What Happens If Beacon Chain Consensus Fails?](https://www.symphonious.net/2021/09/23/what-happens-if-beacon-chain-consensus-fails/) by Adrian Sutton.
 
-## The Building Blocks <!-- /part2/building_blocks/ -->
+## 基础构件 <!-- /part2/building_blocks/ -->
 
-### Introduction
+### 引言
 
-In this chapter we will explore some of the fundamental innovations that make the Ethereum&nbsp;2 protocol practical, the building blocks from which the higher level protocol is constructed.
+在本章中，我们将探讨使以太坊 2 的协议切实可行的一些基本创新，它们是构建更高层协议的基础构件。
 
-None of the building blocks is absolutely brand new &ndash; they all depend to a degree on existing technologies &ndash; but in each case some aspect of the application to Eth2 is novel. The Ethereum Foundation R&D team deserves huge credit for the research and insights behind these advances.
+这些基础构件并非全新——它们都在某种程度上依赖于现有技术——但每一个基础构件在 Eth2 中的应用都有一些新颖之处。在这些进展背后，以太坊基金会研发团队的研究和洞察功不可没。
 
-Be alert, as you read, to the trade-offs that underpin these design choices. The gateway to deep understanding is always in the trade-offs.
+在阅读过程中，请注意这些设计选择背后的权衡取舍。迈向深入理解的大门总是在权衡之中。
 
-Some of the trade-offs are quite interesting. For example, neither the [shuffling](/part2/building_blocks/shuffling/) algorithm nor the [state root](/part2/building_blocks/merkleization/) calculation algorithm are the most efficient that we could have chosen, at least in terms of pure speed. In both cases we preferred algorithms that enable a light client ecosystem over algorithms that might be more performant for full nodes.
+有些权衡相当有趣。例如，混洗（[shuffling](/part2/building_blocks/shuffling/)）算法和状态根（[state root](/part2/building_blocks/merkleization/)）计算算法都不是我们本可以选择的最高效的算法，至少就纯粹的速度而言是如此。在这两种情况下，我们更倾向于选择能够支持轻客户端生态系统的算法，而不是对全节点来说可能更高效的算法。
 
-The building blocks I've grouped together in this chapter are those that are part of the protocol specification itself. Client implementations often employ other optimisations that are not part of the specification. We'll consider some of those later in the [Implementation](/part2/implementation/) chapter.
+我在本章中归纳的基础构件都是协议规范本身的一部分。客户端实现通常采用不属于协议规范的其它优化。我们将在“实现（[Implementation](/part2/implementation/)）”这一章中考虑其中一些优化。
 
-These are the topics that I've picked out for special attention.
+以下是我挑出来的需要被特别关注的主题。
 
-  - [BLS Signatures](/part2/building_blocks/signatures/) precipitated the total redesign of Ethereum's proof of stake protocol, and underpin the scale and ambition of Ethereum 2.
-  - [Randomness](/part2/building_blocks/randomness/) is a vital aspect of security, but difficult to generate in a deterministic system. The beacon chain accomplishes it with BLS signatures.
-  - [Shuffling](/part2/building_blocks/shuffling/) uses randomness to populate committees. But, for the sake of light clients, we use an "oblivious" shuffle rather than the standard Fisher&ndash;Yates.
-  - [Committees](/part2/building_blocks/committees/) distribute the workload of the beacon chain.
-  - [Aggregator Selection](/part2/building_blocks/aggregator/) secretly selects small subsets of committees to do the work of aggregating attestations.
-  - [SSZ: Simple Serialize](/part2/building_blocks/ssz/) is a novel serialisation technique that appears everywhere in the protocol. It embodies elegance and efficiency.
-  - [Hash Tree Roots and Merkleization](/part2/building_blocks/merkleization/) are applications of SSZ. Among other things, they make light clients practical.
-  - Generalised indices and Merkle proofs (TODO).
-  - Sync Committees (TODO).
+  - BLS 签名（[BLS Signatures](/part2/building_blocks/signatures/)）促成对以太坊权益证明协议全面的重新设计，并支撑以太坊 2 的规模和雄心。
+  - 随机性（[Randomness](/part2/building_blocks/randomness/)）是安全性的一个重要方面，但很难在确定性系统中生成随机性。信标链通过 BLS 签名实现了这一点。
+  - 混洗（[Shuffling](/part2/building_blocks/shuffling/)）通过随机性来填充委员会。但是，为了轻客户端，我们使用了“不经意（oblivious）”混洗，而不是标准的 Fisher–Yates 混洗。
+  - 委员会（[Committees](/part2/building_blocks/committees/)）分担了信标链的工作量。
+  - 聚合器选择（[Aggregator Selection](/part2/building_blocks/aggregator/)）会秘密选择委员会的小部分成员来完成聚合认证的工作。
+  - SSZ: 简单序列化（[SSZ: Simple Serialize](/part2/building_blocks/ssz/)）是一种新颖的序列化技术，在协议中随处可见。它优雅高效。
+  - 哈希树根和默克尔化（[Hash Tree Roots and Merkleization](/part2/building_blocks/merkleization/)）是 SSZ 的应用。除了其他的作用，它们还使轻客户端成为可能。
+  - 广义索引和默克尔证明（待写）。
+  - 同步委员会（待写）。
 
-### BLS Signatures <!-- /part2/building_blocks/signatures/ -->
+### BLS 签名 <!-- /part2/building_blocks/signatures/ -->
 
 <div class="summary">
 
-  - Proof of stake protocols use digital signatures to identify their participants and hold them accountable.
-  - BLS signatures can be aggregated together, making them efficient to verify at large scale.
-  - Signature aggregation allows the beacon chain to scale to hundreds of thousands of validators.
-  - Ethereum transaction signatures on the execution (Eth1) layer remain as-is.
+  - 权益证明协议使用数字签名来识别其参与者并使其承担责任。
+  - BLS 签名可以聚合在一起，它们在大规模验证时更加高效。
+  - 签名聚合允许信标链扩展到数十万名验证者。
+  - 以太坊执行层（Eth1）上的交易签名保持原样。
 
 </div>
 
-#### Digital signatures
+#### 数字签名
 
-[Digital signatures](https://en.wikipedia.org/wiki/Digital_signature) are heavily used in blockchain technology. A digital signature is applied to a message to ensure two things: (1) that the message has not been tampered with in any way; and (2) that the sender of the message is who it claims to be. Digital signatures are not new, and really developed during the 1980s as a result of the invention of [asymmetric cryptography](https://en.wikipedia.org/wiki/Public-key_cryptography). However, more recent developments involving elliptic curve, pairing-based cryptography have heavily influenced the design of Ethereum&nbsp;2.
+[数字签名](https://en.wikipedia.org/wiki/Digital_signature) 在区块链技术中被广泛使用。数字签名应用于消息，以确保两点：(1) 消息没有被篡改；(2) 发送消息的人与其声称的身份一致。数字签名并不新颖，早在 1980 年代，由于[非对称加密](https://en.wikipedia.org/wiki/Public-key_cryptography)的发明，它们得到了广泛发展。然而，椭圆曲线和基于配对的密码学（pairing-based cryptography）的最新发展，对以太坊 2 的设计产生了重大影响。
 
-Every time you send an Ethereum transaction you are using a digital signature; all Ethereum users are familiar with the signing work flow. But that's at the transaction level. At the consensus protocol level digital signatures are not used at all in Ethereum&nbsp;1 &ndash; Under proof of work, a block just needs to have a correct `mixHash` proving that it was correctly mined, nobody cares who actually mined the block, so no signature is needed.
+每次发送以太坊交易时，你都在使用数字签名；所有以太坊用户都熟悉签名流程。但这只是交易层面的。以太坊 1 的共识协议层面完全不使用数字签名——在工作量证明下，一个区块只需要有一个正确的 `mixHash` 以证明它被正确挖出，而没人关心实际是谁挖出了这个区块，因此不需要签名。
 
-In Ethereum&nbsp;2, however, validators have identities and are accountable for their actions. In order to enforce the Casper FFG rules, and in order to be able to count votes for the LMD GHOST fork choice, we need to be able to uniquely identify the validators making individual attestations and blocks.
+然而，在以太坊 2 中，验证者有身份并且需要对其行为负责。为了执行 Casper FFG 规则，并能够计算 LMD GHOST 分叉选择的投票，我们需要能够准确识别进行单个证明和创建单个区块的个体验证者。
 
-#### Digital signature usage
+#### 数字签名的用处
 
-The primary function of a digital signature is to irrevocably link the sender of a message with the contents of the message. This can be used, for example, to prove with certainty that a validator has published conflicting votes and is therefore subject to being slashed.
+数字签名的主要功能是将消息发送者与消息内容不可撤销地链接在一起。例如，这可被用来坐实一个验证者发布了相互矛盾的投票，因此会受到罚没惩罚。
 
-The ability to tie messages to validators is also useful outside the protocol. For example, in the gossip layer, signatures are validated by nodes before they are forwarded as an anti-spam mechanism.
+在协议外，将消息与验证者绑定的能力也很有用。例如，在广播层，节点在转发消息前验证签名，以此作为防止垃圾消息的机制。
 
-Alongside their usual function of identifying message senders, digital signatures have a couple of fairly novel uses within the Ethereum&nbsp;2 protocol. They are used when contributing randomness to the [RANDAO](/part2/building_blocks/randomness/), and they are used when selecting [subsets of committees](/part2/building_blocks/aggregator/) for aggregation duty. We will discuss those usages in their respective sections and focus on the signing of protocol messages in this section.
+除了辨识消息发送者的常规功能外，数字签名在以太坊 2 协议中还有一些相当新颖的用途。它们用于向 [RANDAO](/part2/building_blocks/randomness/) 提供随机性，也用于[选择委员会的子集](/part2/building_blocks/aggregator/)进行聚合任务。我们将在各自的章节讨论这些用法，本章节将重点放在协议消息的签名上。
 
-#### Background
+#### 背景
 
 <!-- Number of validators -->
 
-One of the characteristics of proof of stake protocols is the sheer number of protocol messages that need to be handled. With 500,000 active validators, the current beacon chain design calls for over 1,300 attestations per second to be gossiped across the network. That's a sustained average, there are much higher bursts in practice. Not only do these messages need to travel over the network, but each individual digital signature needs to be verified by every node, which is a CPU-intensive operation. Not to mention having to store all those signed messages in the block history. These challenging requirements have typically limited the validator numbers in proof of stake or proof of authority networks. Pure PBFT-based consensus protocols tend to have validator sets that number in the dozens rather than the thousands.
+权益证明协议的一个特点是需要处理大量的协议消息。对于 50 万名活跃的验证者，目前的信标链设计要求每秒钟广播超过 1300 个认证消息。这是一个持续的平均值，实际操作中会有更高的峰值。这些消息不仅需要在网络上传输，每个节点还需要验证每个数字签名，这是一个大量消耗 CPU 的操作。不仅如此，还需要在区块历史中存储所有这些签名消息。这些挑战性要求通常限制了权益证明或权威证明网络中的验证者数量。纯粹基于 PBFT 的共识协议的验证者数量通常是几十而不是数千个。
 
-The prevailing work-in-progress design in early 2018 for Ethereum's (partial) move to proof of stake, [EIP-1011](https://github.com/ethereum/EIPs/blob/master/EIPS/eip-1011.md), estimated that the protocol could handle a maximum of around 900 validators due to this message overhead, and accordingly set a hefty stake size of 1500&nbsp;ETH per validator.
+2018 年初，以太坊（部分）转向权益证明的主流在研设计 [EIP-1011](https://github.com/ethereum/EIPs/blob/master/EIPS/eip-1011.md) 估计，由于这种消息开销，该协议最多只能处理约 900 个验证者，并相应地将每个验证者的质押规模设定为巨额的 1500 个以太币。
 
-The turning point came in May 2018 with the publication by Justin Drake of an article on the Ethresear.ch forum titled [Pragmatic signature aggregation with BLS](https://ethresear.ch/t/pragmatic-signature-aggregation-with-bls/2105?u=benjaminion). The article proposed using a new signature scheme that is able to _aggregate_ many digital signatures into one while preserving the individual accountability of each validator that signed. Aggregation provides a way to dramatically reduce the number of individual messages that must be gossiped around the network, and the cost of verifying the integrity of those messages. It therefore enables us to scale to hundreds of thousands of consensus participants.[^fn-dfinity-credit]
+转折点出现在 2018 年 5 月，Justin Drake 在 Ethresear.ch 论坛上发布了一篇文章《BLS 的实用签名聚合》（[Pragmatic signature aggregation with BLS](https://ethresear.ch/t/pragmatic-signature-aggregation-with-bls/2105?u=benjaminion)）。这篇文章提出使用一种新的签名方案，该方案能够在保持每个签名验证者的个人责任的同时，聚合多个数字签名。聚合提供了一种显著减少网络上广播的个体消息数量及减少验证这些消息的诚实性的成本的方法。因此，它使我们能够扩展到数十万名共识参与者。[^fn-dfinity-credit]
 
 [^fn-dfinity-credit]: To give credit where it is due, the Dfinity blockchain researchers had published [a white paper](https://dfinity.org/pdf-viewer/pdfs/viewer?file=../library/dfinity-consensus.pdf) a few months earlier proposing the use of BLS signatures in a threshold scheme. However, their use of threshold signatures makes the chain vulnerable to liveness failures, and also requires a tricky distributed key generation protocol. Ethereum's aggregation-based approach has neither of these issues. Nonetheless, the name "beacon chain" that we still use today derives from Dfinity's "randomness beacon" described in that paper.
 
-This signature aggregation capability was the main breakthrough that prompted us to abandon the EIP-1011 on-chain PoS management mechanism entirely and move to the "beacon chain" model that we have today[^fn-killing-of-hybrid-casper].
+这种签名聚合能力是促使我们完全放弃 EIP-1011 链上 PoS 管理机制并转向我们今天的“信标链”模型的主要突破 [^fn-killing-of-hybrid-casper]。
 
 [^fn-killing-of-hybrid-casper]: The last significant update to EIP-1011 was made on the [16th of May 2018](https://github.com/ethereum/EIPs/commit/46927c516f6dda913cbabb0beb44a3f19f02c0bb). Justin Drake's post on signature aggregation was made just [two weeks later](https://ethresear.ch/t/pragmatic-signature-aggregation-with-bls/2105?u=benjaminion).
 
-#### BLS Digital Signatures
+#### BLS 数字签名
 
-Digital signatures in the blockchain world are usually based on elliptic curve groups. For signing users' transactions, Ethereum uses [ECDSA](https://en.wikipedia.org/wiki/Elliptic_Curve_Digital_Signature_Algorithm) signatures with the [secp256k1](https://en.bitcoin.it/wiki/Secp256k1) elliptic curve. However, the beacon chain protocol uses [BLS](https://en.wikipedia.org/wiki/BLS_digital_signature) signatures with the [BLS12-381](https://hackmd.io/@benjaminion/bls12-381) elliptic curve[^fn-bls-bls]. Although similar in usage, ECDSA and BLS signatures are mathematically quite different, with the latter relying on a special property of certain elliptic curves called "[pairing](https://medium.com/@VitalikButerin/exploring-elliptic-curve-pairings-c73c1864e627)". Although ECDSA signatures are [much faster](https://datatracker.ietf.org/doc/html/draft-irtf-cfrg-bls-signature-04#section-1.1) than BLS signatures, it is the pairing property of BLS signatures that allows us to aggregate signatures, thus making the whole consensus protocol practical.
+区块链世界中的数字签名通常基于椭圆曲线群。以太坊用于用户交易签名的是 [secp256k1](https://en.bitcoin.it/wiki/Secp256k1) 椭圆曲线的 [ECDSA](https://en.wikipedia.org/wiki/Elliptic_Curve_Digital_Signature_Algorithm) 签名。然而，信标链协议使用的是 [BLS12-381](https://hackmd.io/@benjaminion/bls12-381) 椭圆曲线的 [BLS](https://en.wikipedia.org/wiki/BLS_digital_signature) 签名[^fn-bls-bls]。尽管用法相似，ECDSA 和 BLS 签名在数学上相当不同，后者依赖于某些椭圆曲线的特殊性质——[配对](https://medium.com/@VitalikButerin/exploring-elliptic-curve-pairings-c73c1864e627)。尽管 ECDSA 签名比 BLS 签名[快得多](https://datatracker.ietf.org/doc/html/draft-irtf-cfrg-bls-signature-04#section-1.1)，但正是 BLS 签名的配对属性使我们能够聚合签名，从而使整个共识协议切实可行。
 
 [^fn-bls-bls]: There is a curious naming collision here. The BLS trio of "BLS signatures" are Boneh, Lynn, and Shacham, whereas those of the "BLS12-381" elliptic curve are Barreto, Lynn, and Scott. Ben Lynn is the only common name between the two.
 
-Several other blockchain protocols have adopted or will adopt BLS signatures over the BLS12-381 curve, and throughout our implementation in Eth2 we have been mindful to follow whatever standards exist, and to participate in the defining of those standards where possible. This both helps interoperability and supports the development of common libraries and tooling.
+其他几个区块链协议已经或将采用 BLS12-381 曲线的 BLS 签名，在 Eth2 的实现过程中，我们一直注意遵循已有标准，并在可能的情况下参与定义这些标准。这不仅有助于互操作性，还支持通用库和工具的开发。
 
-The high-level workflow for creating and verifying a BLS signature is relatively straightforward. In the sections that follow I'll describe how it all works with some words, some pictures, and some maths. Feel free to skip the maths if you wish, it's not compulsory and there's no test at the end. Though it is rather elegant.
+创建和验证 BLS 签名的高层流程相对简单。在接下来的章节中，我将用一些文字、图片和数学描述其工作原理。你尽可以跳过数学部分，这非必修也没有测试。尽管它相当优雅。
 
-##### Components
+##### 组件
 
-There are four component pieces of data within the BLS digital signature process.
+BLS 数字签名过程包括四个数据组件：
 
-1. The _secret key_. Every entity acting within the protocol (that is, a validator in the context of Eth2) has a secret key, sometimes called a private key. The secret key is used to sign messages and must be kept secret, as its name suggests.
-2. The _public key_. The public key is uniquely derived from the secret key, but the secret key cannot be reverse engineered from it (without impossibly huge amounts of work). A validator's public key represents its identity within the protocol, and is known to everybody.
-3. The _message_. We'll look later at the kinds of messages used in the Eth2 protocol and how they are constructed. For now, the message is just a string of bytes.
-4. The _signature_, which is the output of the signing process. The signature is created by combining the message with the secret key. Given a message, a signature for that message, and a public key, we can verify that the validator with that public key signed exactly that message. In other words, no-one else could have signed that message, and the message has not been changed since signing.
+1. 秘钥（secret key）。协议中每个实体（在 Eth2 中就是验证者）都有一个秘钥，有时称为私钥。秘钥用于签名消息，必须保密。
+2. 公钥（public key）。从私钥导出独特的公钥，但无法从公钥反向工程出秘钥。验证者的公钥代表其在协议中的身份，并为所有人所知。
+3. 消息（message）。我们稍后会讨论 Eth2 协议中使用的消息类型及其构建方式。目前，消息只是一串字节。
+4. 签名（signature）是签署过程的输出。消息与秘钥结合创建了签名。给定一条消息、该消息的签名以及一个公钥，我们可以验证该公钥的验证者确实签署了这条消息。换句话说，没有其他人可以签署这条消息，而且自签署以来消息没有发生更改。
 
-More mathematically, things look like this. We use two subgroups of the BLS12-381 elliptic curve: $G_1$ defined over a base field $F_q$, and $G_2$ defined over the field extension $F_{q^2}$. The order of both the subgroups is $r$, a 77 digit prime number. The (arbitrarily chosen) generator of $G_1$ is $g_1$, and of $G_2$, $g_2$.
+在数学上，事情看起来像是这样：我们使用 BLS12-381 椭圆曲线的两个子群：定义在基字段 $F_q$ 上的 $G_1$，和定义在扩展字段 $F_{q^2}$ 上的 $G_2$。这两个子群的阶都是一个 77 位的素数 $r$，$G_1$  的生成元是 $g_1$，$G_2$ 的生成元是 $g_2$。
 
-1. The secret key, $sk$, is a number between $1$ and $r$ (technically the range includes $1$, but not $r$. However, very small values of $sk$ would be hopelessly insecure).
-2. The public key, $pk$, is $[sk]g_1$ where the square brackets represent scalar multiplication of the elliptic curve group point. The public key is therefore a member of the $G_1$ group.
-3. The message, $m$ is a sequence of bytes. During the signing process this will be mapped to some point $H(m)$ that is a member of the $G_2$ group.
-4. The signature, $\sigma$, is also a member of the $G_2$ group, namely $[sk]H(m)$.
+1. 秘钥 $sk$ 是介于 1 和 $r$ 之间的一个数字（技术上该范围包括 1，但不包括 $r$，但过小的 $sk$ 值会非常不安全）。
+2. 公钥 $pk$ 是 $[sk]g_1$，其中方括号表示椭圆曲线群点的标量乘法。公钥因此是 $G_1$ 群的成员。
+3. 消息 $m$ 是一个字节序列。在签名过程中，这将被映射到 $G_2$ 群中的某个点 $H(m)$。
+4. 签名 $σ$ 也是 $G_2$ 群的成员，即 $[sk]H(m)$。
 
 <a id="img_bls_key"></a>
 <figure class="diagram" style="width:80%">
@@ -4857,43 +4857,43 @@ There are several implementations of pairings on the BLS12-381 curve around, whi
   - The [Blst](https://github.com/supranational/blst) library is the most commonly used by Eth2 client implementers.
   - The [noble-bls12-381](https://github.com/paulmillr/noble-bls12-381) library is better documented and may be more enjoyable if you want to try playing around with these things.
 
-### Randomness <!-- /part2/building_blocks/randomness/ -->
+### 随机性 <!-- /part2/building_blocks/randomness/ -->
 
 <div class="summary">
 
-  - Assigning beacon chain duties unpredictably is an important defence against some attacks.
-  - The beacon chain maintains a RANDAO to accumulate randomness.
-  - Duties such as proposing blocks, committee assignments, and sync committee participation are assigned based on the RANDAO, with a limited lookahead period.
-  - Block proposers verifiably contribute randomness to the RANDAO via BLS signatures over the epoch number.
-  - Validators are able to bias the RANDAO to a small extent, but this is not significant problem in practice.
+  - 不可预测地分配信标链职责是防御某些攻击的重要手段。
+  - 信标链维护一个 RANDAO 以积累随机性。
+  - 提议区块、委员会分配和同步委员会的参与等职责都是基于RANDAO 分配的，并且有一个有限的提前期（lookahead period）。
+  - 通过对时段编号进行 BLS 签名，区块提议者以可验证的方式为 RANDAO 提供随机性。
+  - 验证者能够在一定程度上影响 RANDAO，但在实践中这不是一个显著的问题。
 
 </div>
 
-#### Introduction
+#### 引言
 
-An element of randomness is an important part of a permissionless blockchain protocol, both for security and for fairness.
+无论是出于安全考虑还是公平考虑，随机性都是无许可区块链协议的重要组成部分。
 
-A protocol that is fully predictable could work well in a benign environment. But we must assume that our protocols will come under attack, and predictability provides attackers with opportunities - just as the bad guys in crime thrillers often take advantage of their victims' predictable routines.
+一个完全可预测的协议可能在良性环境中良好运行。但必须假设我们的协议会受到攻击，而可预测性会给攻击者提供机会——就像犯罪惊悚片中的坏人经常利用受害者可预测的日常生活一样。
 
-An attacker with advance knowledge of which validators will be active in different roles has a significant foothold for mounting an attack. For example, to selectively mount denial of service attacks against future proposers, or to bribe members of a particular committee, or to register especially advantageous validator numbers for themselves allowing them to take over a future committee, or simply to censor transactions.[^fn-initial-shuffling]
+如果攻击者事先知道哪些验证者会在不同角色中发挥作用，那么该攻击者就会有很大的机会发动攻击。例如，选择性地对未来的提议者进行拒绝服务攻击，或贿赂特定委员会的成员，或为自己注册特别有利的验证者编号以便接管未来的委员会，或干脆审查交易。[^fn-initial-shuffling]
 
 [^fn-initial-shuffling]: For a cute illustration of the perils of insufficient unpredictability, see [Issue 1446](https://github.com/ethereum/consensus-specs/issues/1446) on the specs repo: Manipulating deposit contract to gain an early majority. Hat-tip to [Paul Hauner](https://web.archive.org/web/20230630135550/https://nitter.it/paulhauner/status/1509677010448121856).
 
-To quote from a [paper](https://arxiv.org/abs/1809.06528) by Brown-Cohen et al[^fn-unpredictability-paper],
+引用 Brown-Cohen 等人[论文](https://arxiv.org/abs/1809.06528)中的话[^fn-unpredictability-paper],
 
-> Intuitively, it is good for protocols to be unpredictable in the sense that miners do not learn that they are eligible to mine a block until shortly before it is due to be mined. Many attacks, such as double-spending, or selfish-mining, can become much more profitable if miners know in advance when they become eligible to mine.
+> 直观地说，协议具有不可预测性是件好事，因为直到某个区块即将被挖出之前，矿工们才会知道自己有资格挖出该区块。如果矿工事先知道自己何时有资格挖矿，那么许多攻击（如双花或自私挖矿）就会变得更有利可图。
 
 [^fn-unpredictability-paper]: [Formal Barriers to Longest-Chain Proof-of-Stake Protocols](https://arxiv.org/abs/1809.06528), Jonah Brown-Cohen, Arvind Narayanan, Christos-Alexandros Psomas, and S. Matthew Weinberg (2018). Quotation is from section 3.1.
 
-Unpredictability, arising from randomness, is an excellent first line of defence against many attacks.
+由随机性产生的不可预测性，是应对许多攻击的第一道绝佳防线。
 
-Unpredictability in proof of work comes from the process used to mine blocks. A block is valid only if it satisfies a [certain condition](https://ethereum.org/en/developers/docs/consensus-mechanisms/pow/), and the only way to satisfy that condition is through trial and error. Miners make a random guess, test it, and try again if it's not correct - this is the "work" in proof of work. Only if the guess is correct is the block valid and the miner gets to extend the chain. As I write, the difficulty of the Ethereum PoW chain is around 12.5 Peta hashes. That means that mining an Ethereum block requires $1.25 \times 10^{16}$ guesses on average. This is similar to the odds of rolling 21 dice until they all come up six on the same roll. It is fabulously unlikely, yet somewhere on the Ethereum network somebody manages to do it every 13 seconds or so. Since the process is uniform &ndash; nobody is better at guessing (rolling dice) than anyone else &ndash; it provides fairness. Every Giga hash per second is equivalent to every other Giga hash per second (although there are other sources of unfairness in proof of work). And since guessing is random it provides unpredictability, which mitigates the attacks mentioned above.
+工作量证明的不可预测性来自于开采区块的过程。只有满足[特定条件](https://ethereum.org/en/developers/docs/consensus-mechanisms/pow/)的区块才是有效的，而满足该条件的唯一方法就是试错。矿工随机猜测，测试，如果不正确就再试——这就是工作量证明中的“工作量”。只有猜测正确，区块才有效，矿工才能拓展链。在我写作这些内容时，以太坊 PoW 链的难度大约是 12.5 Peta 哈希。这意味着挖掘一个以太坊区块平均需要 $1.25 \times 10^{16}$ 次猜测。这相当于掷 21 个骰子，直到它们在同一次掷骰中所有筛子同时显示出 6 点。这几乎不可能，但在以太坊网络上，大约每 13 秒就会有人成功做到这一点。由于这个过程是统一的——没有人比其他人更擅长猜测（掷骰子）——它提供了公平性。每秒千兆哈希与每秒千兆哈希是等效的（尽管在工作量证明中还有其他不公平的来源）。由于猜测是随机的，它提供了不可预测性，从而减轻了上述攻击的影响。
 
-Randomness[^fn-pseudo-random] in Ethereum's proof of stake protocol is used to bring unpredictability to the selection of block proposers, and to the membership of the committees that attest to blocks and sign sync data.
+以太坊权益证明协议中的随机性[^fn-pseudo-random]为区块提议者的选择带来了不可预测性，也为认证区块和签署同步数据的委员会成员的选择带来了不可预测性。
 
 [^fn-pseudo-random]: I'm not going to distinguish the niceties of randomness and pseudo-randomness in this section. We are actually using pseudo-randomness seeded with (presumed) genuine randomness. It must be the case as it is impossible to come to consensus on genuine randomness. However, I will just call it "randomness" throughout.
 
-In this section we will look at the way that randomness is introduced into the beacon chain, some ways in which it is used, and finally some issues with the current scheme.
+在本节中，我们将探讨将随机性引入信标链的方式，它的一些用途，以及当前方案的一些问题。
 
 #### The RANDAO
 
@@ -5422,26 +5422,26 @@ A [search for RANDAO](https://ethresear.ch/search?q=RANDAO) on ethresear.ch yiel
 
 A good place to start exploring verifiable delay functions is the [VDF Alliance site](https://www.vdfalliance.org/).
 
-### Shuffling <!-- /part2/building_blocks/shuffling/ -->
+### 混洗 <!-- /part2/building_blocks/shuffling/ -->
 
 <div class="summary">
 
-  - Shuffling is used to randomly assign validators to committees and choose block proposers.
-  - Ethereum&nbsp;2 uses a "swap-or-not" shuffle.
-  - Swap-or-not is an oblivious shuffle: it can be applied to single list elements and subsets.
-  - This makes it ideal for supporting light clients.
+  - 混洗被用于随机分配验证者到委员会并选择区块提议者。
+  - 以太坊 2 采用 “swap-or-not” 混洗算法。
+  - “Swap-or-not”是一种不经意混洗：它可以应用于单个列表元素和子集。
+  - 这使得它非常适合支持轻客户端。
 
 </div>
 
-#### Introduction
+#### 引言
 
-Shuffling is used to randomly assign validators to committees, both attestation committees and sync committees. It is also used to select the block proposer at each slot.
+混洗被用于将验证者随机分配到委员会，包括认证委员会和同步委员会。它还用于在每个时隙选择区块提议者。
 
-Although there are [pitfalls](https://www.developer.com/tech/article.php/616221/How-We-Learned-to-Cheat-at-Online-Poker-A-Study-in-Software-Security.htm) to be aware of, shuffling is a well understood problem in computer science. The gold standard is probably the [Fisher&ndash;Yates shuffle](https://en.wikipedia.org/wiki/Fisher%E2%80%93Yates_shuffle). So why aren't we using that for Eth2? In short: light clients.
+虽然有一些需要注意的[陷阱](https://www.developer.com/tech/article.php/616221/How-We-Learned-to-Cheat-at-Online-Poker-A-Study-in-Software-Security.htm)，但混洗是计算机科学中一个非常成熟的问题。黄金标准可能是 [Fisher&ndash;Yates shuffle](https://en.wikipedia.org/wiki/Fisher%E2%80%93Yates_shuffle) 混洗算法。那么，为什么我们不在 Eth2 中使用它呢？简而言之：轻客户端。
 
-Other shuffles rely on processing the entire list of elements to find the final ordering. We wish to spare light clients this burden. Ideally, they should deal with only the subsets of lists that they are interested in. Therefore, rather than Fisher&ndash;Yates, we are using a construction called a "swap-or-not" shuffle. The swap-or-not shuffle can tell you the destination index (or, conversely, the origin index) of a single list element, so is ideal when dealing with subsets of the whole validator set.
+其他混洗算法依赖于处理整个元素列表以找到最终的排序。我们希望减轻轻客户端的负担。理想情况下，他们应该只处理他们感兴趣的列表子集。因此，我们使用了一种被称作“swap-or-not”的混洗算法，而不是Fisher–Yates。“Swap-or-not” 混洗可以告诉你单个列表中元素的目的索引（或相反的源索引），因此非常适合用于处理整个验证者集的子集。
 
-For example, formally committees are assigned by shuffling the full validator list and then taking contiguous slices of the resulting permutation. If I only need to know the members of committee $k$, then this is very inefficient. Instead, I can run the swap-or-not shuffle backwards for only the indices in slice $k$ to find out which of the whole set of validators would be shuffled into $k$. This is much more efficient.
+例如，在形式上，委员会的分配是通过对完整的验证者列表进行混洗，然后对由此产生的排列进行连续切分。如果我只需要知道委员会 $k$ 的成员，那么这种方式就非常低效。相反，我可以只对 $k$ 中的索引反向运行“swap-or-not”混洗，以找出整个验证者集中的哪些验证者会被混洗到 $k$ 中。这要高效得多。
 
 #### Swap-or-not Specification
 
@@ -5643,7 +5643,7 @@ This property is important for light clients. Light clients are observers of the
   - The winning algorithm was announced in [Issue 563](https://github.com/ethereum/consensus-specs/issues/563).
   - The original paper describing the swap-or-not shuffle is Hoang, Morris, and Rogaway, 2012, ["An Enciphering Scheme Based on a Card Shuffle"](https://link.springer.com/content/pdf/10.1007%2F978-3-642-32009-5_1.pdf). See the "generalized domain" algorithm on page 3.
 
-### Committees <!-- /part2/building_blocks/committees/ -->
+### 委员会 <!-- /part2/building_blocks/committees/ -->
 
 <div class="summary">
 
@@ -7166,9 +7166,9 @@ TODO
 
 TODO
 
-# Part 3: Annotated Specification <!-- /part3/ -->
+# 第三部分: 规范注解 <!-- /part3/ -->
 
-## Introduction <!-- /part3/introduction/ -->
+## 介绍 <!-- /part3/introduction/ -->
 
 The beacon chain specification is the guts of the machine. Like the guts of a computer, all the components are showing and the wires are hanging out: everything is on display. In the course of the next sections I will be dissecting the entire core beacon chain specification line by line. My aim is not only to explain how things work, but also to give some historical context: some of the reasoning behind how we ended up where we are today.
 
@@ -7207,17 +7207,17 @@ In addition to the spec documents referenced above, a few other current and hist
 
 Hsiao-Wei Wang gave a [Lightning Talk](https://archive.devcon.org/archive/watch/6/how-to-use-executable-consensus-pyspec/) on the consensus Pyspec at Devcon VI that briefly describes its structure and how it can be executed.
 
-## Types, Constants, Presets, and Configuration <!-- /part3/config/ -->
+## 类型、常量、预设和配置 <!-- /part3/config/ -->
 
-### Preamble
+### 序言
 
-For some, a chapter on constants, presets and parameters will seem drier than the Namib Desert, but I've long found these to be a rich and fertile way in to the ideas and mechanisms we'll be unpacking in detail in later chapters. Far from being a desert, this part of the spec bustles with life.
+对一些人来说，关于常量、预设和参数的章节可能比纳米比沙漠还要枯燥，但长久以来我一直发现这些是进入我们将在后续章节中详细解释的思想和机制的丰富而肥沃的途径。共识层规范的这一部分远非沙漠，它充满生机。
 
-The foundation is laid with a set of custom data types. The beacon chain specification is executable in Python; the data types defined at the top of the spec represent the fundamental quantities that will reappear frequently.
+一套自定义的数据类型奠定了基础。信标链规范可在 Python 中执行；在规范顶部定义的数据类型代表了将频繁出现的基本量。
 
-Then &ndash; with constants, presets, and parameters &ndash; we will examine the numbers that define and constrain the behaviour of the chain. Each of these quantities tells a story. Each parameter encapsulates an insight, or a mechanism, or a compromise. Why is it here? How has it changed over time? Where does its value come from?
+然后——通过常量、预设和参数——我们将检视定义和限制链的行为的数字。这些量中的每一个都讲述了一个故事。每个参数都封装了一个洞察、机制或妥协。它为什么会在这里？它随着时间的推移有何变化？它的价值从何而来？
 
-### Custom Types <!-- /part3/config/types/ -->
+### 自定义类型 <!-- /part3/config/types/ -->
 
 The specification defines the following Python custom types, "for type hinting and readability": the data types defined here appear frequently throughout the spec; they are the building blocks for everything else.
 
@@ -7251,81 +7251,81 @@ And regarding "64-bit", early versions of the spec used [other](https://github.c
 | `ExecutionAddress`   | `Bytes20`      | Address of account on the execution layer |
 | `WithdrawalIndex`    | `uint64`       | an index of a `Withdrawal` |
 
-#### Slot
+#### 时隙（Slot）
 
-Time is divided into fixed length slots. Within each slot, exactly one validator is randomly selected to propose a beacon chain block. The progress of slots is the fundamental heartbeat of the beacon chain.
+时间被划分为固定长度的时隙。在每个时隙内，都会随机选择一个验证者来提出信标链块。时隙的进展是信标链的基本心跳。
 
 [TODO: link to Slots chapter]::
 
-#### Epoch
+#### 时段（Epoch）
 
-Sequences of slots are combined into fixed-length epochs.
+时隙序列被组合成固定长度的时段。
 
-Epoch boundaries are the points at which the chain can be justified and finalised (by the Casper FFG mechanism). They are also the points at which validator balances are updated, validator committees get shuffled, and validator exits, entries, and slashings are processed. That is, the main state-transition work is performed per epoch, not per slot.
+时段边界是链可以被合理化和最终确定的点（通过 Casper FFG 机制）。它们也是验证者余额更新、验证者委员会洗牌、以及验证者退出、加入和罚没被处理的点。也就是说，主要的状态转换工作是按时段进行的，而不是按时隙。
 
-Epochs have always felt like a slightly uncomfortable overlay on top of the slot-by-slot progress of the beacon chain, but necessitated by Casper FFG finality. There have been [proposals](https://ethresear.ch/t/epoch-less-casper-ffg-liveness-safety-argument/2702?u=benjaminion) to move away from epochs, and there are possible future developments that could allow us to [do away](https://ethresear.ch/t/a-model-for-cumulative-committee-based-finality/10259?u=benjaminion) with epochs entirely. But, for the time being, they remain.
+在依照时隙进展的信标链之上，时段总让人感觉有点不舒服，但 Casper FFG 的最终确定性又使其成为必须。曾有人[提议](https://ethresear.ch/t/epoch-less-casper-ffg-liveness-safety-argument/2702?u=benjaminion)摒弃时段，未来的发展也可能让我们完全[摆脱](https://ethresear.ch/t/a-model-for-cumulative-committee-based-finality/10259?u=benjaminion)它。但目前，它们仍然存在。
 
 [TODO: link to Epochs chapter]::
 [TODO: link to Casper FFG]::
 
-Fun fact: Epochs were originally [called Cycles](https://github.com/ethereum/consensus-specs/pull/149).
+Fun fact: Epochs were originally [called Cycles].趣事：时段最初被称为周期 ([Cycles](https://github.com/ethereum/consensus-specs/pull/149))。
 
-#### CommitteeIndex
+#### 委员会索引 (CommitteeIndex)
 
-Validators are organised into committees that collectively vote (make attestations) on blocks. Each committee is active at exactly one slot per epoch, but several committees are active at each slot. The `CommitteeIndex` type is an index into the list of committees active at a slot.
+验证者被组织成委员会，集体对区块投票（做出认证）。在每个时段，每个委员会只在其中一个时隙活跃，但在每个时隙都有几个委员会活跃。委员会索引（`CommitteeIndex`）类型是对在一个时隙活跃的委员会列表的索引。
 
-The beacon chain's [committee-based design](/part2/building_blocks/committees/) is a large part of what makes it practical to implement while maintaining security. If all validators were active all the time, there would be an overwhelming number of messages to deal with. The random shuffling of committees make them very hard to subvert by an attacker without a supermajority of stake.
+信标链[基于委员会](/part2/building_blocks/committees/)的设计在很大程度上使其在保持安全性的同时，也使其实现更容易。如果所有验证者都一直处于活跃状态，那么要处理的信息数量将使网络不堪重负。委员会的随机洗牌使得它们很难被没有绝对多数质押的攻击者颠覆。
 
-#### ValidatorIndex
+#### 验证者索引 (ValidatorIndex)
 
-Each validator making a successful deposit is consecutively assigned a unique validator index number that is permanent, remaining even after the validator exits. It is permanent because the validator's balance is associated with its index, so the data needs to be preserved when the validator exits, at least until the balance is withdrawn at an unknown future time.
+每个成功存款的验证者连续被分配一个唯一的验证者索引号，这个号码是永久的，即使验证者退出后也保留。它是永久的，因为验证者的余额与其索引相关联，所以当验证者退出时，每个成功存款的验证者会依次获得一个连贯且唯一的验证者索引号，该索引号是永久的，即使验证者退出后也会保留。之所以说它是永久的，是因为验证者的余额与其索引相关联，因此当验证者退出时，至少要保留数据直到在未知的将来时间取出余额。
 
 #### Gwei
 
-All Ether amounts on the consensus layer are specified in units of Gwei ($10^9$ Wei, $10^{-9}$ Ether). This is basically a hack to avoid having to use integers wider than 64 bits to store validator balances and while doing calculations, since $2^{64}$ Wei is only 18 Ether. Even so, in some places care needs to be taken to avoid arithmetic overflow when dealing with Ether calculations.
+共识层上的所有以太币数额都以 Gwei 为单位（为 $10^9$ Wei,  $10^{-9}$ 个以太币）。这基本上是一个为避免使用超过 64 位宽的整数来存储验证者余额和进行计算的小技巧，因为 $2^{64}$ Wei 只有 18 个以太币。即便如此，在某些地方仍需小心处理以太币计算中的算术溢出。
 
-#### Root
+#### 根 (Root)
 
-Merkle roots are ubiquitous in the Eth2 protocol. They are a very succinct and tamper-proof way of representing a lot of data, an example of a [cryptographic accumulator](https://en.wikipedia.org/wiki/Accumulator_%28cryptography%29). Blocks are summarised by their Merkle roots; state is summarised by its Merkle root; the list of Eth1 deposits is summarised by its Merkle root; the digital signature of a message is calculated from the Merkle root of the data structure contained within the message.
+默克尔根（Merkle roots）在 Eth2 协议中无处不在。它们是一种非常简洁和防篡改的表示大量数据的方式，是密码学累加器（[cryptographic accumulator](https://en.wikipedia.org/wiki/Accumulator_%28cryptography%29)）的一个例子。区块由其默克尔根概括；状态由其默克尔根概括；Eth1 存款列表由其默克尔根概括；消息的数字签名是由消息内数据结构的默克尔根计算得出的。
 
 #### Hash32
 
-Merkle roots are constructed with cryptographic hash functions. In the spec, a `Hash32` type is used to represent Eth1 block roots (which are also Merkle roots).
+默克尔根是用加密哈希函数构建的。在规范中，`Hash32` 类型用于表示 Eth1 的区块根（它也是默克尔根）。
 
-I don't know why only the Eth1 block hash has been awarded the `Hash32` type: other hashes in the spec [remain](https://github.com/ethereum/consensus-specs/pull/2689) `Bytes32`. In early versions of the spec `Hash32` was used for all cryptographic has quantities, but this was [changed](https://github.com/ethereum/consensus-specs/pull/458) to `Bytes32`.
+我不知道为什么只有 Eth1 区块哈希被授予 `Hash32` 类型：规范中的其他哈希[仍然](https://github.com/ethereum/consensus-specs/pull/2689)是 `Bytes32`。在规范的早期版本中，`Hash32` 被用于所有加密哈希值，但后来被[改为](https://github.com/ethereum/consensus-specs/pull/458)  `Bytes32`。
 
-Anyway, it's worth taking a moment in appreciation of the humble [cryptographic hash function](https://en.wikipedia.org/wiki/Cryptographic_hash_function). The hash function is arguably the single most important algorithmic innovation underpinning blockchain technology, and in fact most of our online lives. Easily taken for granted, but utterly critical in enabling our modern world.
+无论如何，值得花点时间欣赏一下不起眼的[加密哈希函数](https://en.wikipedia.org/wiki/Cryptographic_hash_function)。哈希函数可以说是支撑区块链技术的单一最重要的算法创新，事实上也是我们大多数网络生活的基础。它很容易被忽视，但对我们的当代世界却至关重要。
 
-#### Version
+#### 版本 (Version)
 
-Unlike Ethereum 1[^fn-eth1-forkid], the beacon chain has an in-protocol concept of a version number. It is expected that the protocol will be updated/upgraded from time to time, a process commonly known as a "hard-fork". For example, the upgrade from Phase&nbsp;0 to Altair took place on the 27th of October 2021, and was assigned [its own fork version](/part3/config/configuration/#altair_fork_version). Similarly, the upgrade from Altair to Bellatrix was assigned a [different fork version](/part3/config/configuration/#bellatrix_fork_version).
+与以太坊 1 [^fn-eth1-forkid]不同，信标链有一个协议内的版本号概念。预计协议将不时更新/升级，这个过程通常被称为“硬分叉”。例如，从 Phase 0 到 Altair 的升级发生在 2021 年 10 月27 日，并分配了[它的分叉版本](https://eth2book.info/capella/part3/config/configuration/#altair_fork_version)。同样，从 Altair 到 Bellatrix 的升级也被分配了[不同的分叉版本](https://eth2book.info/capella/part3/config/configuration/#bellatrix_fork_version)。
 
-`Version` is used when computing the [`ForkDigest`](#forkdigest).
+在计算[分叉摘要（`ForkDigest`）](https://eth2book.info/capella/part3/config/types/#forkdigest)时会用到版本（`version`）。
 
 [^fn-eth1-forkid]: Ethereum 1.0 introduced a fork identifier as defined in [EIP-2124](https://eips.ethereum.org/EIPS/eip-2124) which is similar to `Version`, but the Eth1 fork ID is not part of the consensus protocol and is used only in the [networking protocol](https://eips.ethereum.org/EIPS/eip-2364).
 
 [TODO: Link to networking section]::
 
-#### DomainType
+#### 域类型 (DomainType)
 
-`DomainType` is just a [cryptographic nicety](https://datatracker.ietf.org/doc/html/draft-irtf-cfrg-hash-to-curve-12#section-2.2.5): messages intended for different purposes are tagged with different domains before being hashed and possibly signed. It's a kind of name-spacing to avoid clashes; probably unnecessary, but considered a best-practice. Eleven domain types are [defined in Capella](/part3/config/constants/#domain-types).
+DomainType 只是一个[密码学的小巧思](https://datatracker.ietf.org/doc/html/draft-irtf-cfrg-hash-to-curve-12#section-2.2.5)：用于不同目的的信息在被哈希和可能被签名之前会被标记不同的域。这是一种避免冲突的命名空间；可能没有必要，但被认为是一种最佳做法。[Capella 中定义](/part3/config/constants/#domain-types)了 11 种域类型。
 
-#### ForkDigest
+#### 分叉摘要 (ForkDigest)
 
-`ForkDigest` is the unique chain identifier, generated by combining information gathered at genesis with the current chain [`Version`](#version) identifier.
+`ForkDigest` 是唯一的链标识符，由创世时收集的信息与当前链 [`Version`](#version) 标识符结合生成。
 
-The `ForkDigest` serves two purposes.
+`ForkDigest` 有两个作用。
 
-  1. Within the consensus protocol to prevent, for example, attestations from validators on one fork (that maybe haven't upgraded yet) being counted on a different fork.
-  2. Within the networking protocol to help to distinguish between useful peers that on the same chain, and useless peers that are on a different chain. This usage is described in the [Ethereum 2.0 networking specification](https://github.com/ethereum/consensus-specs/blob/v1.3.0/specs/phase0/p2p-interface.md#how-should-fork-version-be-used-in-practice), where `ForkDigest` appears frequently.
+  1. 在共识协议中，例如，防止来自一个分叉（可能尚未升级）上验证者的认证被计算到另一个分叉上。
+  2. 在网络协议中，帮助区分在同一链上的有用的同等节点和不同链上的无用的同等节点。以太坊 2.0 网络规范（[Ethereum 2.0 networking specification](https://github.com/ethereum/consensus-specs/blob/v1.3.0/specs/phase0/p2p-interface.md#how-should-fork-version-be-used-in-practice)）中描述了这种用法，其中 `ForkDigest` 频繁出现。
 
-Specifically, `ForkDigest` is the first four bytes of the hash tree root of the [`ForkData`](/part3/containers/dependencies/#forkdata) object containing the current chain [`Version`](#version) and the [`genesis_validators_root`](/part3/containers/state/#genesis_validators_root) which was created at beacon chain [initialisation](/part3/initialise/#def_initialize_beacon_state_from_eth1). It is computed in [`compute_fork_digest()`](/part3/helper/misc/#def_compute_fork_digest).
+具体来说，`ForkDigest` 是 [`ForkData`](/part3/containers/dependencies/#forkdata) 对象的哈希树根的前四个字节，其中包含当前链的 [`Version`](#version) 和信标链[初始化](/part3/initialise/#def_initialize_beacon_state_from_eth1)时创建的 [`genesis_validators_root`](/part3/containers/state/#genesis_validators_root)。它在 [`compute_fork_digest()`](/part3/helper/misc/#def_compute_fork_digest) 中计算。
 
 [TODO: link to networking section]::
 
-#### Domain
+#### 域 (Domain)
 
-`Domain` is used when verifying protocol messages validators. To be valid, a message must have been [combined](/part3/helper/misc/#def_compute_signing_root) with both the correct domain and the correct fork version. It calculated as the concatenation of the four byte [`DomainType`](#domaintype) and the first 28 bytes of the [fork data root](/part3/helper/misc/#compute_fork_data_root).
+`Domain` 在验证协议消息验证者时使用。消息必须与正确的域和正确的分叉版本[结合](/part3/helper/misc/#def_compute_signing_root)才有效。它的计算方法是将 4 个字节的 [`DomainType`](#domaintype) 和分叉数据根（[fork data root](/part3/helper/misc/#compute_fork_data_root)）的前 28 个字节相加。
 
 #### BLSPubkey
 
