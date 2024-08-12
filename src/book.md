@@ -245,7 +245,7 @@ Lamport 用下面的话捕捉到系统的缺陷:
 
 在这种拜占庭分布式系统中达成共识并非易事，但多年来已有一些相当成功的方法。
 
-第一种主流的解决方案是 1999 年 Liskov 和 Castro 发表的实用拜占庭容错（[Practical Byzantine Fault Tolerance](https://www.scs.stanford.edu/nyu/03sp/sched/bfs.pdf)，PBFT）算法。 这种算法依赖于相对较小和有限的已知共识参与者（被称为副本）集合。在[下面](#safety)讨论的语境中，PBFT 总是“安全的”，且不会产生分叉。
+第一种主流的解决方案是 1999 年 Liskov 和 Castro 发表的实用拜占庭容错（[Practical Byzantine Fault Tolerance](https://www.scs.stanford.edu/nyu/03sp/sched/bfs.pdf)，PBFT）算法。 这种算法依赖于相对较小和有限的已知共识参与者（被称为副本，replica）集合。在[下面](#safety)讨论的语境中，PBFT 总是“安全的”，且不会产生分叉。
 
 中本聪共识——由中本聪为比特币[发明](https://bitcoinpaper.org/bitcoin.pdf)于 2008 年——采取了截然不同的方法。它不是将参与者限制在某个已知集合中，而是使用工作量证明来无许可地选择临时领导者进行共识。与 PBFT 不同,中本聪共识允许分叉，且在形式上是不“安全的”。
 
@@ -1610,51 +1610,51 @@ Casper 的两条戒律非常简单，原则上避免被罚没也很容易：只�
 
 ##### Casper FFG vs PBFT
 
-As Vitalik [acknowledges](https://web.archive.org/web/2/https://nitter.it/VitalikButerin/status/1029903234226216960#m), the technical roots of Casper FFG are in the classical BFT (Byzantine fault tolerant) consensus protocols developed during the 1980s and 1990s. In particular, it has some similarities to the PBFT ([Practical Byzantine Fault Tolerance](https://www.scs.stanford.edu/nyu/03sp/sched/bfs.pdf)) algorithm that was published in 1999.
+正如 Vitalik [所承认的](https://web.archive.org/web/2/https://nitter.it/VitalikButerin/status/1029903234226216960#m)，Casper FFG 的技术根源是 20 世纪 80 年代和 90 年代开发的经典 BFT（Byzantine fault tolerant，拜占庭容错）共识协议。尤其是，它与 1999 年发布的 PBFT（[Practical Byzantine Fault Tolerance](https://www.scs.stanford.edu/nyu/03sp/sched/bfs.pdf)，实用拜占庭容错）算法有一些相似之处。
 
-Nevertheless, Casper FFG is not PBFT, and there are some marked differences between the two. What follows is not a rigorous comparison, but touches on the main points.
+然而，Casper FFG 并不是 PBFT，两者之间有一些显著的区别。以下内容并非严格的比较，但涉及主要的点。
 
-Both PBFT and Casper FFG are "round based", and involve a two-phase commit process. In Casper FFG, a full round is two epochs, but rounds are overlapped, or pipelined, so the `PREPARE` step of one round (justification) coincides with the `COMMIT` step of the previous round (finalisation). This overlap allows Casper FFG to use only one message type (an attestation) that contains two votes (the source and target). Classical PBFT relies on replicas (validators) broadcasting separate `PREPARE` and `COMMIT` messages, and rounds are strictly sequential.
+PBFT 和 Casper FFG 都基于“轮次”，并且涉及两阶段承诺过程。在 Casper FFG 中，一个完整的轮次有两个时段，但轮次相重叠或呈流水线式，所以一个轮次的 `PREPARE` 步骤（合理性）与前一个轮次的 `COMMIT` 步骤（最终确定性）相重合。这种重叠允许 Casper FFG 只使用一种消息类型（认证），该消息包含两个投票（来源和目标）。经典的 PBFT 依赖副本（验证者）广播单独的 `PREPARE` 和 `COMMIT` 消息，且其轮次严格按照顺序。
 
-Both PBFT and Casper FFG rely on a leader in some way. The leaders in Casper FFG are the block proposers of the underlying consensus mechanism, and are expected to change every round. The leader in PBFT is called the primary, and is only changed if it is deemed by the other replicas to be offline or faulty. PBFT has a whole "view change" mechanism to handle switching to a new leader when necessary.
+PBFT 和 Casper FFG 都在某种程度上依赖于一个领导者。在Casper FFG 中，领导者是底层共识机制的区块提议者，并且每个轮次都会更换。而在 PBFT 中，领导者被称为初选提名人，只有在其他副本认为其离线或出现故障时才会更换。PBFT 有一个完整的“视图切换”机制来处理必要时的领导者更换。
 
-Importantly, PBFT will stall if more than one-third of validators are offline since it will be unable to execute a view change. In these circumstances, block production would halt completely, which is a consequence of PBFT and its close relatives favouring safety over liveness. Casper FFG will also stall if more than one-third of validators offline in the sense that finalisation will not move forward. However, there is nothing to prevent the underlying chain from continuing to make progress and provide liveness to the system as a whole. This results from Casper FFG's nature as an overlay on top of an underlying block proposal mechanism.
+重要的是，如果超过三分之一的验证者离线，PBFT 将陷入停滞，因为它将无法执行视图切换。在这种情况下，区块生产将完全停止，这是 PBFT 及其近亲们为了安全性而牺牲活性的结果。如果超过三分之一的验证者离线，Casper FFG 也会停滞不前，因为将无法进行最终确定。然而，这并不会阻止底层的链继续前进，从而为整个系统提供活性。因为 Casper FFG 的性质是作为一个覆盖层，运行在基础的区块提议机制之上。
 
-Finally, the safety guarantees of each differ. Safety (finality) in PBFT is a guarantee that, when fewer than one-third of the replicas are faulty, the output of a round will never be changed. Of course, this is subject as always to social consensus. PBFT is a permissioned protocol, falling into the proof of authority category. If all the authorised participants colluded to update their software, they could revert the state of the system quite easily.
+最终，每种协议的安全性保证是不同的。PBFT（实用拜占庭容错算法）中的安全性（最终确定性）保证是：当不到三分之一的副本出现故障时，一个轮次的输出永远不会被更改。当然，这一切依然取决于社会共识。PBFT 是一种需要许可的协议，属于权威证明（proof of authority）的范畴。如果所有被授权的参与者合谋以更新各自软件，酒可以很轻松地回滚系统状态。
 
-Safety in Casper FFG adds the further cryptoeconomic guarantee that a conflicting checkpoint cannot be finalised without burning at least one-third of the stake. This is a substantially different type of guarantee, but fits well with the permissionless nature of Ethereum's proof of stake protocol.
+Casper FFG 中的安全性增加了一层加密经济学保证：除非燃烧至少三分之一的质押，否则相冲突的检查点无法被最终确定。这种保证类型与前者具有本质上的不同，但与以太坊的权益证明协议的无需许可性质非常契合。
 
-##### Are the Casper commandments optimal?
+##### Casper 戒律是否最优？
 
-There's an interesting discussion to be had around whether the two [Casper commandments](#the-casper-commandments) are ideal or not. For example, there are situations, like the first surround vote shown [above](#img_consensus_commandment_2a), that are harmless, but would nevertheless lead to the validator being slashed. Daniel Lubarov discussed another such scenario in [a post](https://ethresear.ch/t/casper-ffg-leniency-tweak/2286?u=benjaminion) that proposes replacing the second commandment with, "a validator must be prohibited from casting a _finalization_ vote within the span of another vote" (we currently prohibit all spanned votes).
+针对这两条 [Casper 戒律](#the-casper-commandments)是否理想曾发生过一个有趣的讨论。例如，有一些情况，比如[上面](#img_consensus_commandment_2a)显示的第一个环绕投票，是无害的，但仍会导致验证者被罚没。Daniel Lubarov 在一篇[帖子](https://ethresear.ch/t/casper-ffg-leniency-tweak/2286?u=benjaminion)中讨论了另一种类似的情况，建议用“验证者必须被禁止在另一个投票的范围内投下最终确认的票”（我们目前禁止所有跨越投票）来代替第二条戒律。
 
-Along similar lines, Justin Drake has proposed [a tight and intuitive Casper slashing condition](https://ethresear.ch/t/a-tight-and-intuitive-casper-slashing-condition/3359?u=benjaminion) that unifies the two commandments into a single commandment.
+类似地，Justin Drake 提出了一个[紧凑且直观的 Casper 罚没条件](https://ethresear.ch/t/a-tight-and-intuitive-casper-slashing-condition/3359?u=benjaminion)，将两条戒律统一为一条。
 
-> A validator must not cast a vote ${s \rightarrow t}$ that "hops over" one of his finalisation votes ${\tilde{s} \rightarrow \tilde{t}}$, i.e. $h(s) \le h(\tilde{s})$ and $h(t) \ge h(\tilde{t})$ [and such that the target votes conflict].
+> 验证者不得投出一个“跳过”其最终确认投票 ${\tilde{s} \rightarrow \tilde{t}}$ 的票 ${s \rightarrow t}$，即 $h(s) \le h(\tilde{s})$ 且 $h(t) \ge h(\tilde{t})$ [并且这些目标投票相冲突]。
 
-Jacob Eliosoff [goes further](https://ethresear.ch/t/simplifying-casper-votes-to-remove-the-source-param-take-two/6398?u=benjaminion) by suggesting that we remove the source vote altogether and rework the slashing rules accordingly.
+Jacob Eliosoff [更进一步](https://ethresear.ch/t/simplifying-casper-votes-to-remove-the-source-param-take-two/6398?u=benjaminion)建议完全去掉来源投票，并相应地重新制定罚没规则。
 
-While worth thinking through, I think that proposals like these have failed to gain traction simply because what we have is good enough, on the principle of "if it ain't broke, don't fix it". Much work has been done on implementing, analysing, and formally verifying the current version of Casper FFG, and making any change now that does not gain us a huge benefit (such as single slot finality) is unlikely to be worth the effort.
+虽然这些建议值得思考，但我认为它们未能获得广泛支持的原因是：基于“如果没有坏，就不要动它”的原则，目前的方案已经足够好。在实现、分析和正式验证现有版本的 Casper FFG 方面已经做了大量工作，而现在做任何不会带来巨大收益（例如单时隙最终确定性）的改变，可能都不划算。
 
-#### Conflicting justification
+#### 相冲突的合理性
 
-If you want to test your ability to reason about this distributed consensus stuff &ndash; and it's not easy &ndash; it's worth thinking through why we need both a justified and a finalised status. Why can't I immediately mark as finalised any checkpoint for which I've seen a $\frac{2}{3}$ supermajority vote?
+如果你想测试自己在分布式共识方面的推理能力——这并不容易——值得思考为什么我们同时需要“已合理化的”和“已最终确定的”状态。为什么我不能立即将任何获得了 $\frac{2}{3}$ 绝对多数票的检查点标记为已被最终确定？
 
-The key point is that justification is a local property; finality is global.
+关键在于，合理性是局部属性；最终确定性是全局属性。
 
-For me to _justify_ a checkpoint means that I've heard from $\frac{2}{3}$ of the validators that they think that the checkpoint is good. But this is only my local view, since the other validators might have heard something different - I have no idea whether they did or didn't. Nevertheless, as an honest validator, I commit to never reverting any checkpoint that I've justified in my local view.
+“合理化”一个检查点，意味着我已经听到 $\frac{2}{3}$ 的验证者认为这个检查点是好的。但这只是我的本地视图，因为其他验证者可能听到了不同的信息——但我不知道他们是否听到。不过，作为一个诚实的验证者，我承诺永远不会撤销任何在我的本地视图中已被合理化的检查点。
 
-For me to _finalise_ a checkpoint means that I've heard back from $\frac{2}{3}$ of the validators that they've heard from $\frac{2}{3}$ of the validators that the checkpoint is good. I now know that $\frac{2}{3}$ of the validators know that $\frac{2}{3}$ of validators have marked that checkpoint as justified, and therefore that a supermajority of validators globally has committed to never reverting it. That checkpoint is globally safe from reversion.
+“最终确定”一个检查点，意味着我已经听到 $\frac{2}{3}$ 的验证者说他们听到 $\frac{2}{3}$ 的验证者认为这个检查点没问题。我现在知道 $\frac{2}{3}$ 的验证者知道 $\frac{2}{3}$ 的验证者已经将该检查点标记为具有合理性，因此全局中绝对多数的验证者已经承诺永远不撤销它。该检查点在全局范围内是安全的，不会被撤销。
 
-This is all a bit mind-bending, so perhaps it's best understood by looking at ways things can fail if we don't do the full round-trip of confirming that everyone confirms what I have confirmed[^fn-blue-eyes-puzzle].
+这有点令人费解，所以这样也许会更好：通过了解如果我们不这样来来回回地确认每个人都确认了我所确认的内容，而可能导致失败的方式[^fn-blue-eyes-puzzle]。
 
-[^fn-blue-eyes-puzzle]: If you _really_ want to test your understanding of all this "I confirm that everybody has confirmed that everybody has confirmed" stuff, which is at the heart of consensus safety, then I highly recommend tackling the [blue eyes puzzle](https://xkcd.com/blue_eyes.html). I think Joseph Poon introduced me to this in early 2018. It took me a good couple of hours of head scratching to get there, but the effort is worth it. The solution is out there, but I urge you to take a good run at the puzzle before looking it up.
+[^fn-blue-eyes-puzzle]: 如果你真的想测试自己对所有这些“我确认每个人都确认了每个人都确认”的理解——这是共识安全的核心内容——那么我强烈推荐你尝试一下[蓝眼睛谜题](https://xkcd.com/blue_eyes.html)。我记得是 Joseph Poon 在 2018 年初介绍给我这个谜题。我花了好几个小时的抓头挠腮才搞明白，但努力是值得的。解决方案是存在的，但我建议在查看答案之前先尽力挑战一下这个谜题。 
 
-##### Simplified model
+##### 简化的模型
 
-Let's consider an extreme case. We have four validators, $A$, $B$, $C$, and $D$. They are all honest, but the network can suffer indefinite delays. For illustration purposes we will have a checkpoint at every block height. We'll arbitrarily number the epochs from $0$, but block $0$ is not intended to be the genesis block - it could be, but that would slightly alter the description that follows.
+让我们考虑一个极端的情况。假设有四个验证者，$A$、$B$、$C$ 和 $D$。他们都是诚实的，但网络可能会遭遇无限期的延迟。为了便于说明，我们将在每个区块高度设置一个检查点。我们就随便地从 $0$ 开始为时段编号，但区块 $0$ 并不是创世区块——它可以是，但那样会稍微改变接下来的描述。
 
-###### Epoch 1 - setup
+###### 时段 1 - 设定
 
 <a id="img_consensus_conflicting_justification_0"></a>
 <figure class="diagram" style="width: 80%">
@@ -1663,16 +1663,16 @@ Let's consider an extreme case. We have four validators, $A$, $B$, $C$, and $D$.
 
 <figcaption>
 
-In epoch $1$, block $1$ contains enough votes to justify checkpoint $0$. Everybody votes ${0 \rightarrow 1}$.
+在时段 $1$，区块 $1$ 包含足够的投票以合理化检查点 $0$。所有人都投票 ${0 \rightarrow 1}$。
 
 </figcaption>
 </figure>
 
-Recall that only Casper FFG votes contained in blocks affect justification and finalisation. At the start, all the validators have a common view. They all see block $1$, and it contains enough votes to justify checkpoint $0$. So far this is the happy flow. All four validators make the same vote $0 \rightarrow 1$: their source checkpoint is $0$, which they just justified; their target checkpoint is $1$, the current epoch's checkpoint. It's a supermajority vote that _ought_ to lead to checkpoint $1$ being justified by everybody.
+请记住，只有包含在区块中的 Casper FFG 投票才会影响合理性和最终确定性。一开始，所有验证者都有一个共同的视图。他们都看到区块 $1$，并且它包含足够的投票来证明检查点 $0$ 的合理性。截至目前一切正常。四个验证者都做出相同的投票决定 $0 \rightarrow 1$：他们的来源检查点是 $0$，这刚被合理化；他们的目标检查点是 $1$，即当前时段的检查点。这是一个绝对多数投票，应当使检查点 $1$ 被所有人合理化。
 
-###### Epoch 2 - inconsistent justification
+###### 时段 2 - 不一致的合理化
 
-This is where things go wrong. In epoch $2$, validator $A$ is chosen to propose, but for some reason $A$'s block is not seen by the others - it was severely delayed on the network, perhaps by a denial of service attack. Therefore, validators $B$, $C$ and $D$ don't see the supermajority link it contains that justifies checkpoint $1$, so they don't know that anyone else likes checkpoint $1$. We now have split views: validator $A$ has justified checkpoint $1$ and is irrevocably committed to it; the other validators still consider checkpoint $0$ to be the highest justified.
+问题出在这里。在时段 $2$，验证者 $A$ 被选中去提议，但由于某种原因，$A$ 提议的区块没有被其他人看到——可能是由于拒绝服务攻击导致的严重网络延迟。因此，验证者 $B$、$C$ 和 $D$ 没有看到它包含的、证明了检查点 $1$ 合理性的绝对多数链接，所以他们不知道其他人是否支持检查点 $1$。现在我们有了分裂的视图：验证者 $A$ 证明了检查点 $1$ 的合理性，并且不可逆地支持它；其他验证者仍然认为检查点 $0$ 是最高的合理检查点。
 
 <a id="img_consensus_conflicting_justification_1"></a>
 <figure class="diagram" style="width: 80%">
@@ -1681,22 +1681,22 @@ This is where things go wrong. In epoch $2$, validator $A$ is chosen to propose,
 
 <figcaption>
 
-In epoch $2$, validator $A$ proposes block $2$. It contains all four ${0 \rightarrow 1}$ votes, but validators $B$, $C$ and $D$ never see it. Validator $A$ has seen a supermajority link ${0 \rightarrow 1}$, so it marks checkpoint $1$ as justified. Validators $B$, $C$ and $D$ saw no votes in epoch and their best justified checkpoint remains $0$. $A$ votes ${1 \rightarrow 2}$; $B$, $C$ and $D$ vote ${0 \rightarrow X}$, where $X$ is an empty checkpoint.
+在时段 $2$，验证者 $A$ 提议了区块 $2$。它包含了所有四个 ${0 \rightarrow 1}$ 投票，但验证者 $B$、$C$ 和 $D$ 从未看到它。验证者 $A$ 看到一个绝对多数链接 ${0 \rightarrow 1}$，所以它将检查点 $1$ 标记为合理。验证者 $B$、$C$ 和 $D$ 在当下时段没有看到投票，他们最合理的检查点仍然是 $0$。$A$ 投票 ${1 \rightarrow 2}$；$B$、$C$ 和 $D$ 投票 ${0 \rightarrow X}$，其中 $X$ 是一个空检查点。
 
 </figcaption>
 </figure>
 
-The source of the issue is that $A$ has seen everyone else agree, but the others have no evidence of the agreement. As far as $B$, $C$ and $D$ are aware, each is on its own. They have no alternative but to leave things as-is for now and to try to agree in the next round[^fn-less-contrived].
+问题的根源在于 $A$ 看到了其他人都同意，但其他人没有看到这一共识的相关证据。对于 $B$、$C$ 和 $D$ 来说，他们都只能依靠自己。除了暂时保持现状，并尝试在下一轮达成共识之外，他们别无选择。[^fn-less-contrived]
 
-[^fn-less-contrived]: They are likely to have seen each others' votes via gossip, and in a more realistic model, with multiple blocks per epoch, are likely to include these votes in later blocks. But it is not guaranteed, and in our contrived, simplified model, is not possible.
+[^fn-less-contrived]：他们很可能通过广播协议看到彼此的投票。且在更现实的模型中，每个时段里有多个区块的情况下，他们很可能会在后续区块中包含这些投票。但这些并不会保证发生，而且在这个被有意简化的模型中，不可能发生这些。
 
-It's not important for this example, but it's worth noting that, by justifying checkpoint $1$, validator $A$ will have finalised checkpoint $0$. Validator $A$ knows that checkpoint $0$ will never be reverted globally since it knows that at least $\frac{2}{3}$ of validators consider it justified (they used it as their source vote) and will therefore never revert it, irrespective of whatever else is happening.
+现在所说的对本例来说并不重要，但值得注意的是，通过证明检查点 $1$ 的合理性，验证者 $A$ 将使检查点 $0$ 最终确定。验证者 $A$ 知道检查点 $0$ 将永远不会在全局范围内被回滚，因为它知道至少 $\frac{2}{3}$ 的验证者认为它是合理的（他们将其作为来源投票），因此无论发生什么，它们永远不会回滚它。
 
-As for voting in epoch $2$, validator $A$ will vote ${1 \rightarrow 2}$, and the three others will vote ${0 \rightarrow X}$, where $X$ shows that they see the checkpoint in epoch 2 as empty. We haven't discussed empty checkpoints yet &ndash; we'll cover them when we get to Gasper &ndash; for now you can understand that a vote for empty checkpoint $X$ is a statement that the head of the chain in epoch $2$ remains block $1$.
+至于在时段 $2$ 的投票，验证者 $A$ 将投票 ${1 \rightarrow 2}$，而其他三个验证者将投票 ${0 \rightarrow X}$，其中 $X$ 表示他们认为时段 2 的检查点为空。我们尚未介绍空检查点——将在介绍 Gasper 时讨论它——目前你可以理解为对空检查点 $X$ 的投票表明时段 $2$ 的链头仍然是区块 $1$。
 
-###### Epoch 3 - conflicting justification
+###### 时段 3 - 相冲突的合理性
 
-Now assume that the block in epoch $3$ is proposed by one of $B$, $C$ or $D$. It contains the three ${0 \rightarrow X}$ votes, but cannot contain $A$'s vote since it has a different source. In turn, validator $A$ will consider block 3 to be invalid since it contains attestations whose source is not checkpoint $1$, $A$'s highest justified checkpoint. The three votes are enough in the views of $B$, $C$ and $D$ to form a supermajority, so they duly justify checkpoint $X$.
+现在假设是 $B$、$C$ 或 $D$ 中的一个提议了时段 $3$ 中的区块。它包含三个 ${0 \rightarrow X}$ 的投票，但不能包含 $A$ 的投票，因为它有着不同的来源。反过来，验证者 $A$ 将认为区块 $3$ 是无效的，因为它所包含的认证的来源不是检查点 $1$，即 $A$ 的最高合理检查点。在 $B$、$C$ 和 $D$ 的视图中，这三个投票足以形成绝对多数，因此他们适当证明了检查点 $X$ 的合理性。
 
 <a id="img_consensus_conflicting_justification_2"></a>
 <figure class="diagram" style="width: 80%">
@@ -1705,24 +1705,24 @@ Now assume that the block in epoch $3$ is proposed by one of $B$, $C$ or $D$. It
 
 <figcaption>
 
-In epoch $3$, one of $B$, $C$ or $D$ publishes block $3$. It contains the three ${0 \rightarrow X}$ votes, so validators $B$, $C$ and $D$ have a supermajority link justifying the empty checkpoint $X$. Validator $A$ considers block $3$ to be invalid.
+在时段 $3$，$B$、$C$ 或 $D$ 中的一个发布了区块 $3$。它包含了三个 ${0 \rightarrow X}$ 的投票，所以验证者 $B$、$C$ 和 $D$ 有一个绝对多数链接来证明空检查点 $X$ 的合理性。验证者 $A$ 认为区块 $3$ 是无效的。
 
 </figcaption>
 </figure>
 
-At this point, validator $A$'s situation is irrecoverable. The $BCD$ chain will never make votes with checkpoint $1$ as source, so validator $A$ will never consider their attestations or their blocks valid, and vice-versa. Justification cannot progress on $A$'s chain since it can see only $\frac{1}{4}$ of the voting weight. The only remedy is for the node hosting $A$ to wipe its database and perform a fresh re-sync onto the canonical chain. Validator $A$ will then be able to join in again as usual without any risk of violating a Casper commandment[^fn-extreme-and-contrived].
+此时，验证者 $A$ 的情况是不可恢复的。$BCD$ 链将永远不会以检查点 $1$ 作为来源以进行投票，所以验证者 $A$ 将永远不会认为他们的认证或区块是有效的，反之亦然。在 $A$ 的链上合理性无法进展，因为它只能看到 $\frac{1}{4}$ 的投票权重。唯一的补救措施是让托管 $A$ 的节点擦除其数据库并重新同步到正统链。然后验证者 $A$ 能够照常重新加入而不会有违反 Casper 戒律的风险。[^fn-extreme-and-contrived].
 
-[^fn-extreme-and-contrived]: It should be recognised that this is a rather extreme and contrived example. It would be very unusual for anything like this to occur in practice.
+[^fn-extreme-and-contrived]：需要意识到这是一个非常极端且生造的例子。在实际情况中，发生类似事情的可能性非常小。
 
-Note that we have not yet answered our question. What if validator $A$ had immediately marked block $1$ as final rather than only justified? In this example it would not have made a material difference. Block $1$ ultimately appears in the canonical chain progressed by $B$, $C$ and $D$, so marking it as final would have been fine.
+请注意，我们还没有回答自己的问题。如果验证者 $A$ 立即将区块 $1$ 标记为最终确定而不仅仅是合理呢？在这个例子中，不会产生实质性差异。区块 $1$ 最终出现在由 $B$、$C$ 和 $D$ 推动进展的正统链中，所以将其标记为最终确定是没有问题的。
 
-##### Now with adversarial action
+##### 引入敌对行为
 
-To see why skipping the justification step is dangerous we will introduce some adversarial action. Let's say that $C$ and $D$ are not honest validators.
+为了说明跳过合理性步骤是危险的，我们将引入一些敌对行为。让我们假设 $C$ 和 $D$ 是不诚实的验证者。
 
-When all three of $B$, $C$ and $D$ are acting honestly, as above, in epoch $2$ they will vote for the empty checkpoint $X$ that descends from block $1$, then in epoch $3$ will justify it. This locks them into including block $1$ into their canonical chain, since the Casper FFG fork choice now prevents them from building a conflicting branch.
+当 $B$、$C$ 和 $D$ 都是诚实的验证者时，如上所述，他们将在时段 $2$ 投票支持从区块 $1$ 衍生的空检查点 $X$，然后在时段 $3$ 证明其合理性。这将肯定使他们把区块 $1$ 包含在他们的正统链中，因为 Casper FFG 分叉选择现在会阻止他们构建一个相冲突的分支。
 
-However, if a majority of $B$, $C$ and $D$ is dishonest, they can fail to justify $X$ (by not voting), and in epoch $3$ can choose to build a new branch on block $0$, which remains their highest justified checkpoint. In so doing, they will orphan block $1$. Crucially, they can do this _without violating a slashing rule_.
+然而，如果 $B$、$C$ 和 $D$ 中的多数是不诚实的，他们可以通过不投票来使检查点 $X$ 无法合理化，并在时段 $3$ 中选择在区块 $0$ 上构建一个新分支，区块 $0$ 仍然是他们最高的合理检查点。这样做的话，他们将孤立区块 $1$。关键是，他们可以在不违反任何罚没规则的情况下这样做。
 
 <a id="img_consensus_conflicting_justification_3"></a>
 <figure class="diagram" style="width: 80%">
@@ -1731,57 +1731,56 @@ However, if a majority of $B$, $C$ and $D$ is dishonest, they can fail to justif
 
 <figcaption>
 
-When a majority of $B$, $C$ and $D$ is not honest, they can fail to justify checkpoint $X$ and build a branch that orphans block $1$.
+当 $B$、$C$ 和 $D$ 中的大多数不诚实时，他们可以不合理化检查点 $X$ 并构建一个孤立区块 $1$ 的分支。
 
 </figcaption>
 </figure>
 
-Now we get to the point. Had validator $A$ immediately marked block $1$ as final, it would be disastrous for any applications or users that relied on validator $A$'s node for information about the chain. They would have seen a finalised block that never appears in the later canonical chain maintained by $B$, $C$ and $D$. That is, they would have seen a "finalised" block being reverted without any slashing, violating Casper FFG's accountable safety guarantee.[^fn-ffg-split-views]
+现在我们切入正题。如果验证者 $A$ 立即将区块 $1$ 标记为最终确定，那么对于任何依赖于验证者 $A$ 的节点获取链上信息的应用程序或用户来说，这将是灾难性的。他们会看到一个被最终确定的区块，而这个区块在由 $B$、$C$ 和 $D$ 维护的后续正统链中从未出现过。也就是说，他们会看到一个被“最终确定的”区块回滚而没有任何罚没，这违反了 Casper FFG 可问责安全性的保证。[^fn-ffg-split-views]
 
-[^fn-ffg-split-views]: If we had assumed that $C$ and $D$ were controlled by the adversary from the outset, and that the adversary has some control over which of $A$ or $B$ sees their blocks, then it is quite simple for the adversary to split the views of $A$ and $B$ so that each justifies a checkpoint on a different branch. I shall leave it as an exercise for the reader to show this - the flow is similar to the above.
+[^fn-ffg-split-views]: 如果我们假设从一开始 $C$ 和 $D$ 就被对手控制，并且对手对 $A$ 或 $B$ 看到他们的区块有一定的控制权，那么对手很容易将 $A$ 和 $B$ 的视图分裂，使他们分别证明在不同分支上的检查点的合理性。我将留给读者自己去做这个练习——流程与上述情况相似。
 
-Note that we've framed this in terms of adversarial action. But, actually, the assumption of dishonesty _is not necessary_ to prove our point. Perhaps a network delay prevented the epoch $2$ votes from $C$ and $D$ from making it on chain. It is evident that the bad consequences of premature finalisation don't depend on there being more than one-third dishonest validators, which is pretty disastrous.
+请注意，我们是从敌对行为的角度来描述这个问题的。但实际上，对不诚实的假设并不是证明我们观点的必要条件。也许是网络延迟阻止了 $C$ 和 $D$ 在时段 $2$ 中的投票上链。显然，并不需要超过三分之一的不诚实验证者，过早进行最终确定会带来糟糕的结果，而这是相当灾难性的。
 
-In summary, the only way to guarantee safety is via the two-phase commit. This guarantees that a block marked finalised will always appear in the canonical chain, unless at least one-third of validators are slashed.
+总之，唯一能保证安全性的方法是通过两阶段承诺。这保证了被标记为最终确定的区块将始终出现在正统链中，除非至少三分之一的验证者被罚没。
 
-##### Summary and reflections
+##### 总结与反思
 
-Using this toy model, we've have seen that we are able to achieve Casper FFG's guarantees only by using the two-phase commit. We cannot skip justification and go straight to finalisation when we see a supermajority link.
+通过这个简单模型，我们看到只有使用两阶段承诺才能实现 Casper FFG 的保证。当我们看到绝对多数链接时，不能跳过合理性直接进入最终确定。
 
-Even this radically simplified model of the beacon chain is quite tricky to reason about. But all the confirming and re-confirming of things is very much in the nature of distributed systems. Everything would be much easier if we had a trusted central authority. For example, in a national leadership election, we all cast our votes and the central authority counts them and broadcasts the result - it's a single round process. But the consequences can be very bad if the central authority turns out to be corrupt. The two-phase commit is the cost of making our protocol incorruptible.
+即使在这个极度简化的信标链模型中，推理也相当困难。但这所有的确认和再确认正是分布式系统的本质。如果我们有一个可信的中央权威，一切都会容易得多。例如，在国家领导人的选举中，我们都去投票，然后中央权威统计并公布结果——这是一个单轮过程。但如果中央权威是腐败的，后果可能非常严重。两阶段承诺是让我们的协议不受腐败影响的成本。
 
-#### History of Casper FFG
+#### Casper FFG 的历史
 
-The development of the proof of stake consensus protocol for Ethereum 2.0 has a long history which is very well summarised by Vitalik in a [tweet thread](https://web.archive.org/web/20230630135150/https://nitter.it/VitalikButerin/status/1029900695925706753) (consolidated [here](https://hackmd.io/@liangcc/BJZDR1mIX?type=view)), and in Vlad Zamfir's memoirs linked from there.
+以太坊 2.0 权益证明共识协议的开发历史很长，Vitalik 在一个[推文串](https://web.archive.org/web/20230630135150/https://nitter.it/VitalikButerin/status/1029900695925706753)（汇总[在此](https://hackmd.io/@liangcc/BJZDR1mIX?type=view)）中做了很好的总结，Vlad Zamfir 的回忆录中也有提及。
 
-The origins date back as far as January 2014 and Vitalik's [Slasher: A Punitive Proof-of-Stake Algorithm](https://blog.ethereum.org/2014/01/15/slasher-a-punitive-proof-of-stake-algorithm) article. Although almost nothing of the Slasher algorithm is in use today, it introduced the idea of punishing misbehaving validators for violating protocol rules, thus solving the nothing at stake problem that we [discussed](/part2/consensus/lmd_ghost/#slashing-in-lmd-ghost) under LMD GHOST. Slashing paved the way for the idea of [economic finality](#economic-finality).
+其起源可以追溯到 2014 年 1 月，Vitalik 的《罚没者：惩罚性的权益证明算法》（[Slasher: A Punitive Proof-of-Stake Algorithm](https://blog.ethereum.org/2014/01/15/slasher-a-punitive-proof-of-stake-algorithm)）一文。虽然 Slasher 算法中的几乎所有内容都没有被使用，但它引入了惩罚违反协议规则的验证者的想法，从而解决了我们在LMD GHOST 中[讨论](/part2/consensus/lmd_ghost/#slashing-in-lmd-ghost)的无利害关系问题。罚没机制为[经济最终确定性](#economic-finality)的想法铺平了道路。
 
-In 2015 Vitalik was working on [consensus by bet](https://blog.ethereum.org/2015/12/28/understanding-serenity-part-2-casper), a form of which appeared in 2016 in the [Ethereum.org 2.0 Mauve Paper](https://docs.google.com/document/d/1maFT3cpHvwn29gLvtY4WcQiI6kRbN_nbCf3JlgR3m_8/edit#heading=h.v9zt0v8gvrdh). He [describes](https://web.archive.org/web/20230630150818/https://nitter.it/VitalikButerin/status/1029902353703391233#m) consensus by bet as having been, "a big long, and ultimately unproductive, tangent". However, consensus by bet did pioneer the idea of retrospectively conferring finality on top of a forkful block production mechanism, which is the essence of Casper FFG.
+2015 年，Vitalik 正在研究打赌共识（[consensus by bet](https://blog.ethereum.org/2015/12/28/understanding-serenity-part-2-casper)），其中一个版本出现在 2016 年的 [Ethereum.org 2.0 Mauve Paper](https://docs.google.com/document/d/1maFT3cpHvwn29gLvtY4WcQiI6kRbN_nbCf3JlgR3m_8/edit#heading=h.v9zt0v8gvrdh) 中。他将打赌共识[描述](https://web.archive.org/web/20230630150818/https://nitter.it/VitalikButerin/status/1029902353703391233#m)为“一条漫长且最终无果的切线”。然而，打赌共识确实开创了在可分叉的区块生产机制上回溯性地赋予最终确定性的想法，这正是 Casper FFG 的本质。
 
-The Casper FFG mechanism that we have today really started taking shape in 2017, after Vitalik had [returned to](https://web.archive.org/web/20230630151614/https://nitter.it/VitalikButerin/status/1029903234226216960#m) the classical PBFT literature. The [design that emerged](https://medium.com/@VitalikButerin/minimal-slashing-conditions-20f0b500fc6c) begins to look quite familiar to us today, although it doesn't yet use the "justification" terminology, still preferring the `PREPARE` and `COMMIT` terms of PBFT. A really novel feature it provides is achieving economic finality through the use of slashing conditions. There were four slashing conditions at that time, which were [later reduced](https://web.archive.org/web/20230630153358/https://nitter.it/VitalikButerin/status/1029903583897051136#m) to two[^fn-four-to-two-casper], with [one message type](https://ethresear.ch/t/casper-ffg-with-one-message-type-and-simpler-fork-choice-rule/103?u=benjaminion).
+我们今天拥有的 Casper FFG 机制真正开始成型是在 2017 年，Vitalik [回到](https://web.archive.org/web/20230630151614/https://nitter.it/VitalikButerin/status/1029903234226216960#m)经典的 PBFT 文献之后。虽然还没有使用“合理化”这一术语，而是仍然倾向于使用 PBFT 的 `PREPARE` 和 `COMMIT`；但[所涌现的设计](https://medium.com/@VitalikButerin/minimal-slashing-conditions-20f0b500fc6c)我们如今已经相当熟悉。它提供的一个真正新颖的特性是通过使用罚没条件以实现经济最终确定性。当时有四个罚没条件，后来被[减少到](https://web.archive.org/web/20230630153358/https://nitter.it/VitalikButerin/status/1029903583897051136#m)两个[^fn-four-to-two-casper]，只有[一种消息类型](https://ethresear.ch/t/casper-ffg-with-one-message-type-and-simpler-fork-choice-rule/103?u=benjaminion)。
 
-[^fn-four-to-two-casper]: Footnote four of the [Casper FFG paper](https://arxiv.org/pdf/1710.09437.pdf) explains the thinking behind reducing the number of message types from four to two.
+[^fn-four-to-two-casper]: [Casper FFG 论文](https://arxiv.org/pdf/1710.09437.pdf) 中的第四个脚注解释了将消息类型从四个减少到两个的背后考量。 
 
-Vitalik's Casper FFG and Vlad Zamfir's Casper CBC consensus protocols grew up alongside each other during this period. As Vitalik describes in a [blog post](https://blog.ethereum.org/2016/12/04/ethereum-research-update) in December, 2016, the design imperative for Casper FFG was to, "create a simple proof of stake protocol that would provide desirable properties with as few changes from proof of work as possible". He contrasts this typically pragmatic approach with Zamfir's more purist desire to "rebuild consensus from the ground up". Confusingly, the two resulting Casper protocols have little in common apart from generic proof of stake things. Nevertheless, Vitalik still occasionally expresses the hope that Ethereum might [eventually switch](https://www.reddit.com/r/ethereum/comments/ajc9ip/comment/eeudjjw/) to something like Casper CBC.
+在这一时期，Vitalik 的 Casper FFG 和 Vlad Zamfir 的 Casper CBC 共识协议一起成长。正如 Vitalki 在 2016 年 12 月的一篇[博文](https://blog.ethereum.org/2016/12/04/ethereum-research-update)中所述，Casper FFG 的设计要旨是“创建一个简单的权益证明协议，在尽可能不改变工作量证明的情况下去提供理想属性”。他将这种典型的实用主义方法与 Zamfir 更为纯粹的“从头开始重建共识”的愿望进行了对比。令人困惑的是，除了通用的权益证明内容之外，这两种 Casper 协议几乎没有共同之处。不过，Vitalik 偶尔还是会表示，希望以太坊[最终转向](https://www.reddit.com/r/ethereum/comments/ajc9ip/comment/eeudjjw/)类似 Casper CBC 的协议。
+《友好的最终确定性小工具 Casper》（[Casper the Friendly Finality Gadget](https://arxiv.org/abs/1710.09437)）论文的第一版于 2017 年 10 月上传。该论文由 Vitalik 和 Virgil Griffith 撰写，几乎描述了我们今天使用的方案——我们将在[下一节](/part2/consensus/gasper/)中介绍针对 Gasper 的修改。
 
-The first version of the [Casper the Friendly Finality Gadget](https://arxiv.org/abs/1710.09437) paper was uploaded in October 2017. It was written by Vitalik and Virgil Griffith, and pretty much describes the scheme that we use today - subject to the modifications for Gasper that we'll cover in the [next section](/part2/consensus/gasper/).
+如[前](/part2/consensus/overview/#history)所述，最初的计划是将 Casper FFG 作为以太坊现有工作量证明协议的覆盖层。这项工作的进展相当顺利，[EIP-1011](https://eips.ethereum.org/EIPS/eip-1011) 测试网已于 2017 年 12 月 31 日[上线](https://web.archive.org/web/20230630135033/https://nitter.it/karl_dot_tech/status/947503029166546946)。
 
-As noted [earlier](/part2/consensus/overview/#history), the original plan had been to apply Casper FFG as an overlay on Ethereum's existing proof of work protocol. This effort progressed quite far, with an [EIP-1011](https://eips.ethereum.org/EIPS/eip-1011) testnet [going live](https://web.archive.org/web/20230630135033/https://nitter.it/karl_dot_tech/status/947503029166546946) on the 31st of December, 2017.
+PoW 覆盖计划在 2018 年被放弃，转而通过运行 Gasper（LMD GHOST 加 Casper FFG）共识架构的新信标链架构直接转向完全的权益证明，这就是我们今天的架构。
 
-The PoW overlay plan was abandoned in 2018 in favour of moving directly to full proof of stake via a new beacon chain architecture running the Gasper (LMD GHOST plus Casper FFG) consensus architecture - this is the architecture that we have today.
+Casper FFG 在信标链上的初始规范是在 [Ethresear.ch](https://ethresear.ch/t/beacon-chain-casper-mini-spec/2760?u=benjaminion) 上维护的（你可以在那里看到文档历史）。它包括 $k$-最终确定性（Casper FFG 分叉选择规则的一个略微奇怪的版本），以及我们今天使用的两条 Casper 戒律。然而，信标链现在的一个时段是 32 个时隙，而非 64 个，我们也没有实现动态的验证者集机制。
 
-The initial specification for Casper FFG on the beacon chain was maintained on [Ethresear.ch](https://ethresear.ch/t/beacon-chain-casper-mini-spec/2760?u=benjaminion) (you can see the document history there). It includes $k$-finality, a slightly weird version of the Casper FFG fork choice rule, and the two Casper commandments as we use them today. However, the beacon chain now uses 32 slot epochs rather than 64, and we did not implement the dynamic validator set mechanism.
+当前的 Casper FFG 规范被作为信标链状态转换函数中的[时段处理](/part3/transition/epoch/)的一部分而维护。
 
-The current Casper FFG specification is maintained as part of [epoch processing](/part3/transition/epoch/) in the beacon chain's state transition function.
+#### 练习的答案
 
-#### Answer to the Exercise
-
-Here's the answer to the [exercise above](#exercise).
+以下是[上方](#exercise)练习的答案。
 
 <details>
 <summary>Answer</summary>
 
-Suppose that attestations are always delayed by exactly one epoch, so that votes made in epoch $N$ are not processed until epoch $N+1$, and consider the following progress of the Casper FFG algorithm.
+假设认证总是延迟整一个时段，那么在时段 $N$ 所做的投票要到时段 $N+1$ 才被能处理，请跟随下面的 Casper FFG 算法进程。
 
 <a id="img_consensus_answer_0"></a>
 <figure class="diagram" style="width: 80%">
@@ -1790,7 +1789,7 @@ Suppose that attestations are always delayed by exactly one epoch, so that votes
 
 <figcaption>
 
-We start with Checkpoint&nbsp;0 being justified. During Epoch&nbsp;1 everyone votes ${0 \rightarrow 1}$ as usual. The supermajority link vote is shown dashed because processing the votes will be delayed until the next epoch.
+我们从检查点 0 被合理化开始。在时段 1 期间，每个人都像往常一样投票 ${0 \rightarrow 1}$。绝对多数链接投票显示为虚线，因为对投票的处理将延迟到下一个时段。
 
 </figcaption>
 </figure>
@@ -1802,7 +1801,7 @@ We start with Checkpoint&nbsp;0 being justified. During Epoch&nbsp;1 everyone vo
 
 <figcaption>
 
-At the end of Epoch&nbsp;1, no votes have been seen, due to the delay, so Checkpoint&nbsp;1 remains unjustified. During Epoch&nbsp;2 everyone votes ${0 \rightarrow 2}$.
+在时段 1 结束时，由于延迟，我们尚未看到任何投票，因此检查点 1 仍未被合理化。在时段 2 期间，每个人都投票 ${0 \rightarrow 2}$。
 
 </figcaption>
 </figure>
@@ -1814,7 +1813,7 @@ At the end of Epoch&nbsp;1, no votes have been seen, due to the delay, so Checkp
 
 <figcaption>
 
-At the end of Epoch&nbsp;2, we can process the Epoch&nbsp;1 votes, which justify Checkpoint&nbsp;1 (and finalise 0, but that's irrelevant). Checkpoint&nbsp;2 remains unjustified as we haven't seen the Epoch&nbsp;2 votes yet. During Epoch&nbsp;3 everyone votes ${1 \rightarrow 3}$.
+在时段 2 结束时，我们可以处理时段 1 的投票，从而合理化检查点 1（并最终确定检查点 0，但这无关紧要）。检查点 2 仍未被合理化，因为我们还没有看到时段 2 的投票。在时段 3 期间，每个人都投票 ${1 \rightarrow 3}$。
 
 </figcaption>
 </figure>
@@ -1826,7 +1825,7 @@ At the end of Epoch&nbsp;2, we can process the Epoch&nbsp;1 votes, which justify
 
 <figcaption>
 
-Justification continues to lag one epoch behind due to the delayed attestations. During Epoch&nbsp;4 everyone votes ${2 \rightarrow 4}$.
+由于延迟的认证，合理化继续滞后一个时段。在时段 4 期间，每个人都投票 ${2 \rightarrow 4}$。
 
 </figcaption>
 </figure>
@@ -1838,30 +1837,30 @@ Justification continues to lag one epoch behind due to the delayed attestations.
 
 <figcaption>
 
-We are now perpetually locked into this leap-frog behaviour where votes always skip a checkpoint because the skipped checkpoint's justification always happens one epoch late.
+现在，我们被永远困在这种跳蛙行为中：由于被跳过的检查点的合理化总是晚一个时段，投票也总是跳过一个检查点。
 
 </figcaption>
 </figure>
 
 </details>
 
-#### See also
+#### 另见
 
-The original [Casper the Friendly Finality Gadget](https://arxiv.org/pdf/1710.09437.pdf) paper remains the canonical reference. Although the details of our implementation in Ethereum&nbsp;2.0 differ in some respects, the foundations remains the same.
+最初的《友好的最终确定性小工具 Casper》（[Casper the Friendly Finality Gadget](https://arxiv.org/pdf/1710.09437.pdf)）仍然是权威的参考。尽管以太坊 2.0 中的实现细节在某些方面有所不同，但根基是一样的。
 
-That paper also discusses using an "inactivity leak" to recover from catastrophic crashes (section 4.2). I've covered [elsewhere](/part2/incentives/inactivity/) how we've implemented the inactivity leak in Eth2.
+那篇论文还讨论了使用“怠惰惩罚”来从灾难性崩溃中恢复（第 4.2 节）。我已经在[其他地方](/part2/incentives/inactivity/)介绍了我们如何在 Eth2 中实现怠惰惩罚。
 
-Once again, Vitalik's Casper history [Tweet storm](https://web.archive.org/web/20230630135150/https://nitter.it/VitalikButerin/status/1029900695925706753) (also available [here](https://www.trustnodes.com/2018/08/16/vitalik-buterin-tells-story-race-vlad-zamfir-implement-proof-stake-casper) and [here](https://hackmd.io/@liangcc/BJZDR1mIX?type=view)) provides terrific first-hand background to the development of the Casper consensus protocols, CBC and FFG.
+再一次，Vitalik 关于 Casper 历史的[推文风暴](https://web.archive.org/web/20230630135150/https://nitter.it/VitalikButerin/status/1029900695925706753)（也可在[这里](https://www.trustnodes.com/2018/08/16/vitalik-buterin-tells-story-race-vlad-zamfir-implement-proof-stake-casper)和[这里](https://hackmd.io/@liangcc/BJZDR1mIX?type=view)查看）为 Casper 共识协议、CBC 和 FFG 开发的背景提供了绝佳的第一手资料。
 
-In the consensus layer specifications:
+在共识层规范中：
 
-  - Justification and finalisation calculations are performed during epoch processing, the entry point being [`process_justification_and_finalization()`](/part3/transition/epoch/#def_process_justification_and_finalization), with the main work done by [`weigh_justification_and_finalization()`](/part3/transition/epoch/#def_weigh_justification_and_finalization), including the $k$-finality handling.
-  - Rewards and penalties are applied during epoch processing by [`process_rewards_and_penalties()`](/part3/transition/epoch/#def_process_rewards_and_penalties), but this is only a simple totting up the rewards calculated block-by-block in [`process_attestation()`](/part3/transition/block/#def_process_attestation).
-  - Casper FFG slashing violations are handled by [`process_attester_slashing()`](/part3/transition/block/#def_process_attester_slashing).
+  - 合理化和最终确定的计算是在时段处理期间执行的，入口点是 [`process_justification_and_finalization()`](/part3/transition/epoch/#def_process_justification_and_finalization)，主要工作由 [`weigh_justification_and_finalization()`](/part3/transition/epoch/#def_weigh_justification_and_finalization) 完成，包括处理 $k$-finality。
+  - 奖励和惩罚是由 [`process_rewards_and_penalties()`](/part3/transition/epoch/#def_process_rewards_and_penalties) 在时段处理期间应用的，但这只是简单地累加由 [`process_attestation()`](/part3/transition/block/#def_process_attestation) 计算的、一个区块一个区块的奖励。
+  - Casper FFG 对违规行为的罚没由 [`process_attester_slashing()`](/part3/transition/block/#def_process_attester_slashing) 处理。
 
-One of the better articles I've found on Casper FFG is by [Juin Chiu](https://medium.com/unitychain/intro-to-casper-ffg-9ed944d98b2d). It is particularly good on the relationship between Casper FFG and classical PBFT. Vitalik's [Minimal slashing conditions](https://medium.com/@VitalikButerin/minimal-slashing-conditions-20f0b500fc6c) article contains many insights (even if those slashing conditions did not turn out to be minimal).
+我找到的一篇关于 Casper FFG 的好文章来自于 [Juin Chiu](https://medium.com/unitychain/intro-to-casper-ffg-9ed944d98b2d)。这篇文章对 Casper FFG 与经典 PBFT 之间的关系解释的非常好。Vitalik 的《极简的罚没条件》（[Minimal slashing conditions](https://medium.com/@VitalikButerin/minimal-slashing-conditions-20f0b500fc6c)）文章也包含许多洞见（即使这些罚没条件并非极简）。
 
-Some formal verification work on the guarantees of Casper FFG (as presented in the original paper, that is, without $k$-finality, for example) is described in the [Verification of Casper in the Coq Proof Assistant](https://core.ac.uk/download/pdf/161954227.pdf) (2018) paper. It contains some useful insights that clarify the assumptions behind the plausible liveness proof, in particular.
+一些关于 Casper FFG 保证的正式验证工作（根据原始论文的内容，没有如 $k$-finality）在 2018 年的《Coq 证明助手对 Casper 的验证》（[Verification of Casper in the Coq Proof Assistant](https://core.ac.uk/download/pdf/161954227.pdf)）论文中有所描述。文章中有一些有用的见解，特别是澄清了可能的活性证明背后的假设。
 
 ### Gasper <!-- /part2/consensus/gasper/* -->
 
@@ -1913,25 +1912,34 @@ TODO. See the [Annotated Fork Choice](/part3/forkchoice/phase0/#proposer-boost).
 
 #### Casper FFG
 
-##### Casper FFG's fork choice can cause long reorgs
+##### Casper FFG 的分叉选择可能导致长时间的重组
 
-Casper FFG's [fork choice rule](/part2/consensus/casper_ffg/#fork-choice-rule) says that the underlying consensus protocol must follow the chain with the highest justified checkpoint. This guarantees Casper FFG's [plausible liveness](/part2/consensus/casper_ffg/#plausible-liveness), but can also lead to long reorgs in exceptional circumstances.
+Casper FFG 的[分叉选择规则](/part2/consensus/casper_ffg/#fork-choice-rule)规定，底层共识协议必须遵循具有最高的已被合理化的检查点的链。这保证了 Casper FFG的[合理活性](/part2/consensus/casper_ffg/#plausible-liveness)，但在特殊情况下也可能导致长时间的重组。
 
-Such an incident occurred on Ethereum's Goerli testnet on the 28th of July, 2023. The following explanation is guided by the excellent [analysis by Potuz](https://web.archive.org/web/20230922104428/https://nitter.net/potuz1/status/1685736037321166848).
+2023 年 7 月 28 日，在以太坊的 Goerli 测试网就发生了类似事件。下面的解释是基于 [Potuz 的出色分析](https://web.archive.org/web/20230922104428/https://nitter.net/potuz1/status/1685736037321166848)。
 
-If we look at [Epoch 192879](https://goerli.beaconcha.in/epoch/192879) on the Goerli testnet, we notice that it has an initial block in [Slot 6172128](https://goerli.beaconcha.in/slot/6172128), but all subsequent blocks in the epoch are either missing completely or were orphaned. A fork choice visualiser [shows](https://web.archive.org/web/20230922104428/https://nitter.net/potuz1/status/1685736037321166848) that the proposers in [Epoch 192880](https://goerli.beaconcha.in/epoch/192880) simply ignored everything after the first slot of Epoch 192879 and chose instead to build on the block in Slot 6172128.
+如果我们查看 Goerli 测试网的[时段 192879](https://goerli.beaconcha.in/epoch/192879)，会发现它在[时隙 6172128](https://goerli.beaconcha.in/slot/6172128) 有一个初始区块，但该时段中的所有后续区块要么完全缺失，要么被孤立。分叉选择可视化工具显示，[时段 192880](https://goerli.beaconcha.in/epoch/192880) 的提议者们完全忽略了时段 192879 第一个时隙之后的所有内容，而是选择在时隙 6172128 的区块上构建新区块。
 
-So, what happened?
+那么，到底发生了什么？
 
-1. Unusually, Checkpoint 192878 had not been justified by the end of Epoch 192878, since not enough votes had been accumulated.
-2. The block at [Slot 6172128](https://goerli.beaconcha.in/slot/6172128), at the start of Epoch 192879, contained enough votes to justify Checkpoint 192878, but the block was published very late.
-3. Subsequent proposers correctly ignored the block at Slot 6172128 due to its lateness and instead built a chain on the block at Slot 6172126. They continued building this chain throughout Epoch 192879.
-   - However, the blocks on this new chain did not include the votes that would have justified Checkpoint 192878. By design, blocks have [limited space](/part3/config/preset/#max-operations-per-block) for attestations. Due to several slots being empty, attestation space was congested.
-   - They also did not have enough votes to justify Checkpoint 192879 by the end of Epoch 192879.
-4. After epoch processing at the end of Epoch 192879 we have two branches:
-   1. the first contains a single block in Epoch 192879, at Slot 6172128, and Checkpoint 192878 is the highest justified;
-   2. the second contains many blocks in Epoch 192879, and Checkpoint 192877 is the highest justified.
-5. At start of Epoch 192880, Casper FFG's fork choice says that Block 6172128 must be the new head since it has the highest justified checkpoint, and all of the subsequent blocks in [Epoch 192879](https://goerli.beaconcha.in/epoch/192879) must be ignored.
+1. 异常的是，在时段 192878 结束时，检查点 192878 没有被验证，因为它没有积累足够的投票。
+
+2. 在[时段 192879](https://goerli.beaconcha.in/slot/6172128) 开始时，时隙 6172128 的区块包含足够多能够合理化检查点 192878 的投票，但该区块发布得非常晚。
+
+3. 由于其延迟，随后的提议者正当地忽略了时隙 6172128 的区块，而是在时隙 6172126 的区块上构建了一条链。在整个时段 192879，他们持续构建这条链。
+
+   - 然而，这条新链上的区块没有包含足以合理化检查点 192878 的投票。根据设计，区块的认证[空间有限](/part3/config/preset/#max-operations-per-block)。由于多个时隙为空，认证空间变得拥挤。
+
+   - They also did not have enough votes to justify Checkpoint 192879 by the end of Epoch 192879.他们也没有足够的投票以在时段 192879 结束前合理化检查点 192879。
+
+4. 在时段 192879 结束时的时段处理后，我们有了两个分支：
+
+   1. 第一个分支在时段 192879 中只包含一个区块，即时隙 6172128，且检查点 192878 是最高的合理检查点；
+
+   2. 第二个分支在时段 192879 中包含多个区块，且检查点 192877 是最高的合理检查点。
+
+5. 在时段 192880 开始时，Casper FFG 的分叉选择规则规定，由于时隙 6172128 中的区块具有最高的合理检查点，它必须成为新的头块，[时段 192879](https://goerli.beaconcha.in/epoch/192879) 中的所有后续区块必须被忽略。
+
 
 <a id="img_consensus_issues_ffg_reorg"></a>
 <figure class="diagram" style="width: 95%">
@@ -1940,24 +1948,24 @@ So, what happened?
 
 <figcaption>
 
-During epoch processing at the end of 192879, the top branch contains votes that justify Checkpoint 192878, while the bottom branch does not contain sufficient votes to justify either 192878 or 192879. Casper FFG's fork choice forces proposers in 192880 to build on the branch with higher justification. As a result, all blocks in slots 6172130 to 6172159 were orphaned (reorged). The large squares are checkpoints, the rounded squares are blocks.
+在时段 192879 结束时的时段处理期间，顶部分支包含合理化检查点 192878 的投票，而底部分支没有足够的投票来合理化检查点 192878 或检查点 192879。Casper FFG 的分叉选择迫使时段 192880 的提议者在具有更高合理化检查点的分支上进行构建。因此，时隙 6172130 到 6172159 的所有区块都被孤立（重组）。大方块是检查点，圆角方块是区块。
 
 </figcaption>
 </figure>
 
-This was not due to an implementation bug, but due to Casper FFG's fork choice. If the bottom fork had remained canonical in epoch 192880, any validator following the top fork, and not seeing the blocks on the bottom fork until much later, would be forced eventually to move its justified epoch back from 192878 to 192877, potentially requiring them to make slashable surround votes in future.
+原因不是实现中的漏洞，而是 Casper FFG 的分叉选择。如果在第 192880 个时段中，底部的分叉保持正统性，那么如果任何跟随顶部分叉的验证者直到很晚才看到底部分叉上的区块，将回被迫让其被合理化的时段从 192878 退回到 192877，这可能会导致它们在未来进行可被罚没的环绕投票。
 
-The severity of the reorg was exacerbated by:
+这次重组的严重性被以下因素加剧：
 
-  - the length of epochs, with accounting being performed only every 32 slots;
-  - overall participation rates that were close to the 67% supermajority threshold;
-  - a block (at slot 6172128) that contained key justification information having been published late;
-  - several empty slots that caused contention for block space, so that important attestations were excluded from the longer chain in Epoch 192879; and
-  - too tight a time window for attestations to be included, which ought to be helped by the change planned in [EIP 7045](https://eips.ethereum.org/EIPS/eip-7045).
+  - 时段的长度：每 32 个时隙才会记录一次时段；
+  - 总体的参与率接近 67% 的绝对多数门槛；
+  - 一个包含关键的合理化信息的区块（在时隙 6172128）被延迟发布；
+  - 几个空时隙导致区块空间的竞争，使得在时段 192879 中的重要认证被排除在较长链之外；以及
+  - 认证被包含在区块中的时间窗口太紧，这应该会通过 [EIP 7045](https://eips.ethereum.org/EIPS/eip-7045) 中计划的变更得到改善。
 
-Note that all of this is independent of the separate issues around [unrealised justification](/part3/forkchoice/phase0/#unrealised-justification).
+请注意，所有这些与未实现的合理性（[unrealised justification](/part3/forkchoice/phase0/#unrealised-justification)）相关的问题无关。
 
-This scenario would be very unlikely to occur on the Ethereum mainnet, principally because participation is almost always over 99%, way above the supermajority threshold, and blocks are much more rarely missed than on the testnets.
+这种情况在以太坊主网上发生的可能性非常低，主要是因为参与率几乎总是超过 99%，远高于绝对多数门槛，并且区块丢失的情况比在测试网上少得多。
 
 #### Gasper
 
@@ -1967,7 +1975,7 @@ TODO
 
 TODO. See the [Annotated Fork Choice](/part3/forkchoice/phase0/#unrealised-justification).
 
-### Weak Subjectivity <!-- /part2/validator/weak_subjectivity/* -->
+#### Weak Subjectivity <!-- /part2/validator/weak_subjectivity/* -->
 
 The two great problems that had to be solved in order for proof of stake to be a sound foundation for the world's economic activity were (1) the nothing at stake problem, and (2) long range attacks.
 
@@ -2027,31 +2035,31 @@ TODO
 
 <div class="summary">
 
-  - Deposits are transfers of Ether from the execution layer to the consensus layer.
-  - Withdrawals are transfers of Ether from the consensus layer to the execution layer.
-  - Accounting on each layer is completely separate.
-  - Stakers send transactions to the deposit contract in order to stake.
-  - Staking is permissionless.
-  - Withdrawals are periodic and automatic.
-  - Withdrawals are either partial or full.
+  - 存款将以太币从执行层向共识层转移。
+  - 取款将以太币从共识层向执行层转移。
+  - 执行层和共识层的记账彼此完全独立。
+  - 质押者向存款合约发送交易以进行质押。
+  - 质押无需许可。
+  - 取款是定期且自动的。
+  - 可以提出部分或全部款项。
 
 </div>
 
-### Overview
+### 概述
 
-As a proof of stake protocol, Ethereum depends on stakers locking up capital within the protocol (deposits), and, eventually, receiving that capital back along with the rewards they have earned (withdrawals).
+作为一种权益证明协议，以太坊依赖将资本锁定在协议内（存款），并最终连同赚取的奖励一起取回（取款）的质押者。
 
-The form of capital that is staked is Ether (ETH), Ethereum's native currency. Ether on the consensus layer exists separately, and is accounted for separately, from Ether in normal Ethereum accounts and contracts. Ether on the consensus layer is in the form of balances of validator accounts. Validator accounts are extremely limited: they have a balance that increases due to deposits and rewards, and decreases due to withdrawals and penalties. You cannot make transfers between validator accounts or run any kind of transaction on them. Validator account balances are tracked as part of the [beacon state](/part3/containers/state/), and do not form part of the normal Ethereum execution state. Note that execution balances are denominated in Wei ($10^{-18}$ ETH), whereas validator balances are denominated in Gwei ($10^{-9}$ ETH).
+被质押的资本是以太币（ETH），即以太坊的原生货币。共识层中的以太币独立存在，并与普通以太坊账户和合约中的以太币分开记账。共识层上的以太币存在于验证者账户的余额中。验证者账户的功能极度有限：余额因存款和奖励而增加，因取款和惩罚而减少。你无法在验证者账户之间进行转账或执行任何类型的交易。验证者账户的余额被作为[信标状态](/part3/containers/state/)的一部分而跟踪，并不构成常规的以太坊执行状态的一部分。需要注意的是，执行层的余额以 Wei（$10^{-18}$ ETH）为单位，而验证者的余额以 Gwei（$10^{-9}$ ETH）为单位。
 
-The basic architecture (that we'll cover thoroughly in the following sections) is that stakers make a deposit by sending an Ethereum transaction to the deposit contract, which is a standard Ethereum smart contract on the execution layer. It is important that staking is completely permissionless. Anybody may stake and gain the right to run a validator by sending 32&nbsp;ETH to the deposit contract in a normal Ethereum transaction.
+它的基本架构（将在以下部分详细介绍）是，质押者通过向存款合约发送一笔以太坊交易来进行存款，该合约是执行层上的一个标准的以太坊智能合约。很重要的是质押完全无需许可。通过在一笔普通的以太坊交易中向存款合约发送 32 个以太币，任何人都可以质押并获得运行验证者的权利。
 
-On receiving a deposit, the deposit contract emits a receipt. After a while, this receipt is picked up by the consensus layer, and a validator account is created and credited with the deposit amount. The staker can then run an Ethereum validator.
+收到存款后，存款合约会发出一张收据。过一段时间，这张收据会被共识层拾取，创建一个验证者账户并记入存款金额。然后，质押者可以运行一个以太坊验证者。
 
-All being well, the validator will earn rewards. These will be periodically, and automatically, debited from the validator's balance and credited to the Eth1 account specified in the withdrawal credentials, the withdrawal address.
+如果一切顺利，验证者将获得奖励。这些奖励将定期且自动地从验证者的余额中扣除，并记入取款凭证中指定的 Eth1 账户，即取款地址。
 
-When the validator finally signals that it wants to exit the protocol (or is slashed), then any remaining balance is debited from the validator account and credited to the withdrawal address.
+当验证者最终表示想要退出协议，或验证者被罚没时，任何剩余余额将从验证者账户中扣除，被记入取款地址。
 
-The whole flow is illustrated in the following diagram.
+整个流程如下图所示。
 
 <a id="img_deposits_withdrawals_overview"></a>
 <figure class="diagram" style="width: 98%">
@@ -2060,48 +2068,48 @@ The whole flow is illustrated in the following diagram.
 
 <figcaption>
 
-A sketch of the flows of deposits and withdrawals for a validator. Time runs roughly from top to bottom. Top-up deposits are optional, but shown for completeness. Accounts 1 and 2 may be the same, and may be contracts. Account 2 is the withdrawal address.
+关于验证者存款和取款流动情况的草图。时间大致从上至下流动。补充存款（Top-up deposits）是可选的，但为了完整性而被展示出来。账户 1 和账户 2 可能是相同的，也可能是合约。账户 2 是取款地址。
 
 </figcaption>
 </figure>
 
-An amusing observation from the diagram is that there is no minus sign attached to the deposit contract: the deposit contract's balance is "up-only" as validators exit and restake. When a validator exits and restakes, the deposit contract's balance increases by 32&nbsp;ETH while everything else is essentially unchanged. If this were to happen 3.2 million times (not inconceivable with well over half a million validators currently staked) then the balance of the deposit contract would exceed the total amount of Ether that's ever circulated, roughly 120 million ETH. This is of no importance, except to underline that the balance of the deposit contract should be considered burned, and counted as zero when totting up Ethereum's total supply.[^fn-deposit-contract-balance]
+从图表中有趣的一点是，存款合约中不会有减号：随着验证者退出和重新质押，存款合约的余额“只增不减”。当一个验证者退出然后重新质押时，存款合约的余额增加 32 以太币，而其他一切基本保持不变。如果这种情况发生 320 万次（考虑到目前有超过 50 万个质押的验证者，这并非不可想象），那么存款合约的余额将超过以太坊历史上曾经流通的以太币总量，大约为 1.2 亿。这并不重要，只是为了强调存款合约的余额应被视为已销毁，并在计算以太坊的总供应量时将其计为零。[^fn-deposit-contract-balance]
 
-[^fn-deposit-contract-balance]: Now that the Engine API is available, we could in principle reduce the deposit contract's balance whenever a receipt is processed on the consensus layer, but the added complexity is undesirable only to fix this quirk.
+[^fn-deposit-contract-balance]: 现在引擎 API 已经可用，原则上我们可以在共识层处理收据时减少存款合约的余额，但不值得只是为了修复这一处怪异而去增加复杂性。 
 
-More importantly, there are two types of deposit and two types of withdrawals. A validator is created when its first deposit is processed by the consensus layer (which may or may not be enough to activate it). Any subsequent deposits for the same validator are top-up deposits and have a slightly different workflow with less validation.
+更重要的是，有两种类型的存款和两种类型的取款。当共识层处理某个验证者的首次存款时（这可能不足以激活它），验证者账户便被创建。为同一验证者进行的任何后续存款都是补充存款，并且具有稍微不同的工作流程，需要的验证较少。
 
-As for withdrawals, partial withdrawals are regular transfers of anything above 32&nbsp;ETH from the validator's balance to the execution layer. A full withdrawal occurs when the validator has exited the protocol and has become "withdrawable", at which point the whole of the validator's remaining balance will be transferred. Both types of withdrawal occur automatically and periodically.
+至于取款，部分取款是从验证者余额中将超过 32 个以太币的部分定期转移到执行层。完全取款发生在验证者退出协议并变为“可取款”状态时——此时验证人剩下的全部余额将被转移。两种取款都是自动和定期进行的。
 
-In the following sections, we will look first at the mechanics of [making a deposit](/part2/deposits-withdrawals/staking/), followed by an in-depth study of [the deposit contract](/part2/deposits-withdrawals/contract/). We will close by looking at the consensus layer mechanics for processing [deposits](/part2/deposits-withdrawals/deposit-processing/) and [withdrawals](/part2/deposits-withdrawals/withdrawal-processing/).
+在接下来的部分中，我们将首先看一下[进行存款](/part2/deposits-withdrawals/staking/)的操作机制，然后深入研究[存款合约](/part2/deposits-withdrawals/contract/)。最后我们将看看共识层处理[存款](/part2/deposits-withdrawals/deposit-processing/)和[取款](/part2/deposits-withdrawals/withdrawal-processing/)的机制。
 
-A constant theme of the next sections is that much of the complexity in the current deposit and withdrawal processes has arisen due to Ethereum's peculiar history. The deposit contract's incremental Merkle tree, the Eth1Data voting period, the Eth1 follow distance - all these are due to the execution layer having remained on proof of work while we built a separate beacon chain on proof of stake. The whole BLS withdrawal credentials saga arose from our uncertainty about the roadmap at the time.
+下面章节中的一个恒定的主题是——当前存款和取款过程中的许多复杂性源于以太坊独特的历史。存款合约的增量默克尔树、Eth1Data 投票期、Eth1 跟随距离——这些都是因为在我们建立一个独立的信标链以进行权益证明时，执行层仍然保持着工作量证明。整个 BLS 取款凭证的事件也源于当时我们对路线图的不确定性。
 
-Another theme is that, post-Merge, we have the opportunity to clean some of this up. [EIP-6110](https://eips.ethereum.org/EIPS/eip-6110) is a proposal for significantly streamlining deposit handling. Nevertheless, some of the complexity will be with us forever.
+另一个主题是——在合并后，我们有机会清理其中的一些复杂性。[EIP-6110](https://eips.ethereum.org/EIPS/eip-6110) 是一项将存款处理极大地流程化的提案。尽管如此，有些复杂性将永远伴随我们。
 
-### Making a Deposit <!-- /part2/deposits-withdrawals/staking/ -->
+### 进行存款 <!-- /part2/deposits-withdrawals/staking/ -->
 
 <div class="summary">
 
-  - Initial deposits create a validator's record.
-  - Top-up deposits increase an existing validator's balance.
-  - Making a deposit involves sending a transaction to the deposit contract.
-  - The Ethereum Launchpad provides a nice interface for this, although alternatives exist.
-  - The deposit CLI tool, among others, can create deposit data and BLS keystores.
+  - 初始存款会创建一个验证者记录。
+  - 补充存款会增加现有的验证者余额。
+  - 进行存款涉及向存款合约发送交易。
+  - 以太坊启动平台提供了一个很好的界面，尽管也存在其他选择。
+  - 存款命令行界面（CLI）工具等可以创建存款数据和 BLS 密钥库。
 
 </div>
 
-#### Introduction
+#### 引言
 
-This is not a how-to guide, so I'll only consider the main tools and workflows as an introduction to the ideas.
+这不是一个操作指南，所以我只会介绍主要的工具和工作流程，以帮助理解这些概念。
 
-The Ethereum Foundation's [Staking Launchpad](https://launchpad.ethereum.org/) is the entry point for many solo stakers. Large operations might use smart contracts to submit deposits [in batches](https://github.com/stakefish/eth2-batch-deposit), but we will focus on a single deposit of 32&nbsp;ETH.
+以太坊基金会的质押启动平台（[Staking Launchpad](https://launchpad.ethereum.org/)）是许多个人质押者的入口。大型操作可能会使用智能合约去[批量](https://github.com/stakefish/eth2-batch-deposit)提交存款，但我们将专注于 32 个以太币的单笔存款。
 
-The Launchpad will guide you towards using the [staking deposit CLI tool](https://github.com/ethereum/staking-deposit-cli)[^fn-eth-staking-smith]. It is strongly recommended that you run the deposit CLI tool offline, possibly air-gapped and on a live-booted machine. This is to keep your mnemonic seed phrase as safe as possible[^fn-safe-mnemonic].
+启动平台将引导你使用质押存款命令行界面（[staking deposit CLI tool](https://github.com/ethereum/staking-deposit-cli)）[^fn-eth-staking-smith]。强烈建议你离线运行这个工具，比如在隔离网络的环境中或使用刚刚启动的机器。这是为了尽可能保证助记词种子短语的安全[^fn-safe-mnemonic]。
 
-[^fn-eth-staking-smith]: [Eth-staking-smith](https://github.com/ChorusOne/eth-staking-smith) is an alternative. I have not used it and cannot vouch for it, though the source is legit. It has the interesting feature of being able to use PBKDF2 as the key derivation function - see [below](#keystores).
+[^fn-eth-staking-smith]: [Eth-staking-smith](https://github.com/ChorusOne/eth-staking-smith) 是一个替代选择。我没有使用过它，因此不能保证其可靠性，但其来源可靠。它有一个有趣的功能，即可以使用 PBKDF2 作为密钥派生函数——见[下文](#keystores)。
 
-[^fn-safe-mnemonic]: It used to be more important to protect your mnemonic as it controlled your withdrawal credentials as well as your signing key. Nowadays it will normally be used only for your signing key - an attacker can do you less harm with that than with the withdrawal credentials.
+[^fn-safe-mnemonic]: 在以前保护助记词比现在更重要，因为它不仅控制你的签名密钥，还控制你的取款凭证。如今，它通常只用于你的签名密钥——攻击者用它能造成的危害要比取款凭证小。 
 
 #### Initial deposits
 
@@ -3224,7 +3232,7 @@ $$
 
 对于每个验证者的余额，信标链会维护两份独立的记录：实际余额和有效余额。
 
-验证者的实际余额直截了当，它是：通过存款合约而为验证者存入的资金的总和，加上累积的信标链奖励，减去累积的惩罚和提款。实际余额的变化很快，所有活跃验证者的实际余额至少每个时段会更新一次，同步委员会参与者的实际余额则会每个时隙更新一次。它的颗粒度也很细：实际余额的单位是 Gwei，即 $10^{-9}$ 个以太币。
+验证者的实际余额直截了当，它是：通过存款合约而为验证者存入的资金的总和，加上累积的信标链奖励，减去累积的惩罚和取款。实际余额的变化很快，所有活跃验证者的实际余额至少每个时段会更新一次，同步委员会参与者的实际余额则会每个时隙更新一次。它的颗粒度也很细：实际余额的单位是 Gwei，即 $10^{-9}$ 个以太币。
 
 验证器的有效余额是根据其实际余额推导出来的，其变化速度要慢得多。为了实现这一点，有效余额的单位是整数的以太币（参见 [`EFFECTIVE_BALANCE_INCREMENT`](/part3/config/preset/#effective_balance_increment)），有效余额的变化受迟滞（[hysteresis](#hysteresis)）的约束。
 
