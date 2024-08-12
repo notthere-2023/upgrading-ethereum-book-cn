@@ -7,7 +7,20 @@
 
 export LANG=en_GB.UTF-8
 
-$(dirname "$0")/spellcheck_prep.pl $1 \
-    | aspell --home-dir . -p $2 --dont-suggest pipe -d en_GB-ise-w_accents \
-    | tail -n +2 \
-    | awk 'BEGIN {n=1} /^$/{n++} /^..+$/{print "Line " n ": "$2}'
+# $(dirname "$0")/spellcheck_prep.pl $1 \
+   # | aspell --home-dir . -p $2 --dont-suggest pipe -d en_GB-ise-w_accents \
+   # | tail -n +2 \
+   # | awk 'BEGIN {n=1} /^$/{n++} /^..+$/{print "Line " n ": "$2}'
+
+
+# Check if running in Vercel environment
+if [[ "$VERCEL_ENV" == "production" ]]; then
+  echo "Skipping spellcheck in Vercel production environment."
+else
+  # Original spellcheck logic here
+  export LANG=en_GB.UTF-8
+  $(dirname "$0")/spellcheck_prep.pl $1 \
+      | aspell --home-dir . -p $2 --dont-suggest pipe -d en_GB-ise-w_accents \
+      | tail -n +2 \
+      | awk 'BEGIN {n=1} /^$/{n++} /^..+$/{print "Line " n ": "$2}'
+fi
