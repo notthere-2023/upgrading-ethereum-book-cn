@@ -14,24 +14,24 @@
 
 **注意**：在1.0版本发布之前，任何内容都可能发生变化。我会尽量避免更改规范注解部分的URL和锚点，但不做保证。其他内容，包括一整个章节和一整个部分，都应被看作是不稳定的。
 
-### What to expect
+### 将要呈现给你的
 
-This is a book for those who want to understand Ethereum&nbsp;2.0 &ndash; Ethereum on proof of stake &ndash; at a technical level. What does it do? How does it work? Why is it like this?
+这本书适合那些希望从技术层面理解以太坊2.0——基于权益证明的以太坊——的读者。它做了什么？如何运作？为什么它是现在这样？
 
-Who am I writing for? For people like me! People who enjoy understanding how things work. But more than that, who like to know _why_ things are the way they are. This is not intended to be an academic work; I am more interested in insight than in rigour. But I try to link out to relevant academic papers and formal analyses where relevant.
+这本书是为谁而写呢？为像我这样的人！那些喜欢理解事物运行原理的人。不仅如此，也是为那些还喜欢了解事物 _为何_ 如此的人。这本书并非学术作品；我更关注洞察力而非严谨性。但我会尽量在适当的地方链接到相关的学术论文和正式分析。
 
-Although I am an Ethereum staker and an Ethereum user, I am not writing primarily for stakers or users here. Some of the generic material on [Staking](/appendices/staking/) may be relevant (once I have written it), but you will find better help in places like the excellent [EthStaker](https://ethstaker.cc/) community.
+虽然我是以太坊的质押者和用户，但我的主要目标读者并非这类人。与[质押](/appendices/staking/)有关的通用内容可能也会有所帮助（待我完成后），但你可以在[EthStaker](https://ethstaker.cc/)等优秀社区中获得更实用的支持。
 
-The scope of the book concerns (what I consider to be) the Ethereum&nbsp;2.0 protocol. Ethereum&nbsp;2.0 has become a less well-defined term recently. But for me, it broadly includes,
+本书的范围主要围绕（我认为的）以太坊2.0协议展开。近年来，以太坊2.0的定义逐渐变得模糊，但在我看来，它大致涵盖以下内容：
 
-  - all things proof of stake and the beacon chain,
-  - the process of The Merge by which Ethereum moved to proof of stake,
-  - in-protocol data sharding, and
-  - an array of potential future enhancements.
+- 所有与权益证明（PoS）和信标链相关的技术，
+- 以太坊通过“合并（Then Merge）”从转向权益证明的过程，
+- 协议内的数据分片机制，以及
+- 一系列潜在的未来升级和改进。
 
-I will not be covering any of the historic Ethereum&nbsp;1.0 protocol, except as it touches upon The Merge. The [Mastering Ethereum book](https://github.com/ethereumbook/ethereumbook) is an excellent resource, though rather out of date now. Although rollups and other so-called layer 2 solutions have rapidly become part of the overall Ethereum&nbsp;2.0 system, they are by definition not in-protocol, and I will not be covering them here. I will not be discussing, DeFi, DAOs, NFTs, or any of the wonderful things that can be built on top of this amazing technology.
+除非与“合并”直接相关，否则我不会涉及以太坊1.0协议的历史内容。如果你想了解以太坊1.0，可以参考《精通以太坊》[Mastering Ethereum book](https://github.com/ethereumbook/ethereumbook)这本书，尽管它已有些过时。此外，虽然卷叠（Rollups）和其他被称为二层网络（layer 2）的解决方案已迅速融入以太坊2.0生态系统，但由于它们本质上不在协议内部，因此本书不会涉及这些内容。同样，我也不会讨论DeFi、DAO、NFT或其他基于以太坊技术构建的精彩应用。
 
-It's a chunky list of exclusions, but there's still [plenty to talk about](/contents/).
+尽管已排除许多，但以太坊2.0协议本身仍有[大量值得深入探讨](/contents/)的内容。
 
 ### Versions
 
