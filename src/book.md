@@ -1,18 +1,18 @@
-# Preface <!-- /preface/ -->
+# 前言 <!-- /preface/ -->
 
-## Upgrading Ethereum
+## 升级以太坊
 
-Welcome to my book about upgrading Ethereum: Ethereum on proof of stake and beyond.
+欢迎阅读我关于以太坊升级的书籍：以太坊的权益证明及其它。
 
-### Work in progress!
+### 工作进行中！
 
-I am writing this book backwards. Bottom up. Starting with the details and working towards the big picture.
+我正从后往前撰写这本书。自下而上。从细节入手，逐步走向大图景。
 
-The first pretty much complete part is [Part 3: The Annotated Spec](/part3/). These are the guts of the machine. Like the innards of a computer, all the components are showing and the wires are hanging out: everything is on display. But with the guts in place, everything else can be built around them with the messiness all neatly tucked away.
+目前，几近完成的是第三部分：[规范注解](/part3/)。它们是机器内脏。就像计算机的内部结构，所有组件裸露在外，电线散落：一切都一览无余。但有了这些核心部分，我们就可以围绕它构建其他部分，将内部的杂乱无章干净地隐藏起来。
 
-I'm now working on [Part 2: Technical Overview](/part2/) which wraps a first, hopefully more accessible, layer around the Annotated Spec. Again, I'm writing this backwards, starting with the protocol's [Building Blocks](/part2/building_blocks/) and its [Incentive Mechanisms](/part2/incentives/) and working forwards towards a higher level narrative of how it all fits together. The current focus is on the [Consensus](/part2/consensus/) chapter.
+我正在撰写[第二部分：技术概览](/part2/)，这部分旨在为规范注解裹上更易于理解的表层。同样，我自后往前撰写这部分，从协议的[构建模块](/part2/building_blocks/)和[激励机制](/part2/incentives/)开始，逐步推进到更高层次的叙述，解释这一切如何被整合在一起。当前的重点是[共识](/part2/consensus/)这一章。
 
-**Warning:** until Edition 1.0 is out, anything may change. I'll try not to change URLs and anchors in the Annotated Spec part, but no promises. Anything else, including entire chapters and sections, should be considered unstable.
+**注意**：在1.0版本发布之前，任何内容都可能发生变化。我会尽量避免更改规范注解部分的URL和锚点，但不做保证。其他内容，包括一整个章节和一整个部分，都应被看作是不稳定的。
 
 ### What to expect
 
