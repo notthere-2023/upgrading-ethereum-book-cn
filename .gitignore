@@ -26,3 +26,6 @@ test*
 # IntelliJ configs
 .idea/
 *.iml
+
+# Translation working files
+src/partially-translated.md

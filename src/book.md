@@ -33,47 +33,47 @@
 
 尽管已排除许多，但以太坊2.0协议本身仍有[大量值得深入探讨](/contents/)的内容。
 
-### Versions
+### 版本
 
-This edition covers the Capella version of the deployed Ethereum&nbsp;2.0 consensus layer. The beacon chain went live with [Phase&nbsp;0](/part4/history/phase0/) on December 1st, 2020. It was upgraded to [Altair](/part4/history/altair/) on October 27th, 2021, to [Bellatrix](/part4/history/bellatrix/) on September 6th, 2022, and to [Capella](/part4/history/capella/) on April 12th, 2023.
+当前版本是基于已被部署的Capella以太坊2.0共识层。信标链于2020年12月1日随[Phase 0](/part4/history/phase0/)上线。随后分别于2021年10月27日升级至[Altair](/part4/history/altair/)，2022年9月6日升级至[Bellatrix](/part4/history/bellatrix/)，以及2023年4月12日升级至[Capella](/part4/history/capella/)。
 
-Specifically, unless otherwise stated, any reference to the consensus specifications is to the version [tagged v1.3.0](https://github.com/ethereum/consensus-specs/tree/v1.3.0) (the [Gamlum](https://github.com/ethereum/consensus-specs/releases/tag/v1.3.0) release).
+除非另有说明，本书中所有关于共识规范的引用均基于[v1.3.0版本](https://github.com/ethereum/consensus-specs/tree/v1.3.0)（即[Gamlum](https://github.com/ethereum/consensus-specs/releases/tag/v1.3.0)）。
 
-Historical and current versions of Upgrading Ethereum are available online:
+《升级以太坊》的历史版本和当前版本均可在线获取：
 
-  - The old [Altair spec version](/../altair/),
-  - The old [Bellatrix spec version](/../bellatrix/),
-  - The current [Capella spec version](/../capella/), and
-  - The [latest version](/../latest/), which is currently Capella.
+  - 旧版[Altair规范版本](/../altair/)，
+  - 旧版[Bellatrix规范版本](/../bellatrix/)，
+  - 当前[Capella规范版本](/../capella/)，以及
+  - [最新版本](/../latest/)，目前为Capella版本。
 
-My original annotated specification for the Phase&nbsp;0 version is [also available](https://benjaminion.xyz/eth2-annotated-spec/phase0/beacon-chain/), though largely of historical interest and now subsumed into this book.
+我最初编写的Phase 0版本注释规范[同样可被获取](https://benjaminion.xyz/eth2-annotated-spec/phase0/beacon-chain/)，不过主要是为了历史参考，而且已被本书涵盖。
 
-### In defence of &ldquo;Eth2&rdquo;
+### 为"Eth2"辩护
 
-When I started this writing project, Ethereum on proof of stake was universally known as Ethereum&nbsp;2.0, Eth2 for short, as it had been since 2014. This reflects the fact that the Ethereum&nbsp;2.0 vision diverged from the original Ethereum&nbsp;1.0 implementation in many respects. The direction of travel was well-captured in the [Ethereum.org 2.0 Mauve Paper](https://docs.google.com/document/d/1maFT3cpHvwn29gLvtY4WcQiI6kRbN_nbCf3JlgR3m_8/edit#) in 2016. The details of our eventual implementation differ from what's presented there, but the elements were all in place even then. Eth2 was to deliver not only proof of stake, but new cryptography, new peer-to-peer networking, new cryptoeconomics, and new directions in scalability, among other things. This is what we achieved.
+当我开始这个写作项目时，基于权益证明的以太坊被普遍称为以太坊2.0，简称Eth2，这个称呼从2014年就开始使用了。这反映了以太坊2.0的愿景在许多方面与最初的以太坊1.0实现有所不同。2016年的[以太坊2.0紫皮书（Ethereum.org 2.0 Mauve Paper）](https://docs.google.com/document/d/1maFT3cpHvwn29gLvtY4WcQiI6kRbN_nbCf3JlgR3m_8/edit#)很好地捕捉到了这个发展方向。虽然我们最终的实现细节与那里描述的有所不同，但所有的要素在当时就已经具备了。Eth2不仅要实现权益证明，还要带来新的密码学、新的点对点网络、新的加密经济学以及可扩展性的新方向等其他内容。这就是我们已经实现的。
 
-In 2022, the Ethereum Foundation [declared](https://blog.ethereum.org/2022/01/24/the-great-eth2-renaming) that we must emphasise continuity over discontinuity by rebranding Ethereum&nbsp;2.0 back to plain old Ethereum. With the way that the Merge was coming together, that made some sense from an Ethereum user's point of view. The user and developer experience was to be almost unchanged by the move to proof of stake.
+2022年，以太坊基金会[宣布](https://blog.ethereum.org/2022/01/24/the-great-eth2-renaming)我们必须通过将以太坊2.0重新品牌化为以太坊来强调连续性而非断裂性。考虑到合并（The Merge）的进展方式，从以太坊用户的角度来看，这确实有一定道理。用户和开发者的使用体验几乎不会因为转向权益证明而改变。
 
-However, I am not writing primarily as a user of Ethereum or as a developer on Ethereum. From the point of view of a _protocol engineer_, the Merge was a moment of profound discontinuity. Ethereum on proof of stake is utterly different from Ethereum on proof of work - the size and complexity of this book is ample evidence of that. With Ethereum's new architecture we have delivered a good chunk of what the Mauve Paper laid out all those years ago.
+然而，我写作时的身份主要不是作为以太坊的用户或开发者。从一个_协议工程师_的角度来看，合并是一个深刻的断裂时刻。基于权益证明的以太坊与基于工作量证明的以太坊完全不同——这本书的规模和复杂性就是充分的证据。通过以太坊的新架构，我们实现了多年前紫皮书中规划的大部分内容。
 
-This is why I often continue to refer to Ethereum on proof of stake as Ethereum&nbsp;2.0 or Eth2[^fn-ef-overreach], and I make no apology for that. I am confident that you will understand what I mean, and that it will help clarify rather than confuse.
+这就是为什么我经常继续将基于权益证明的以太坊称为以太坊2.0或Eth2[^fn-ef-overreach]，对此我不会道歉。我相信你们能理解我的意思，这会让事情更清晰而非混淆。
 
-[^fn-ef-overreach]: That, and being a bloody-minded reactionary who dislikes being told what to do and say by a centralised authority. The EF's claim that, "As of late 2021, core developers stopped using the terminology" is laughably untrue.
+[^fn-ef-overreach]: 这么做还因为我是个顽固的保守派，不喜欢被中心化权威告知该做什么、该说什么。以太坊基金会的声称"从2021年末开始，核心开发者停止使用这个术语"简直令人发笑。
 
 <a id="british-english"></a>
-While we're here, another thing I won't be apologising for is using British English spelling, punctuation, and quaint idioms. It's a feature, not a bug.
+说到这里，另一件我不会道歉的事是使用英式英语的拼写、标点符号和独特的习语表达。这是特色，不是报错。
 
-### Acknowledgements
+### 致谢
 
-Above all, I want to thank my employer, [Consensys](https://consensys.io/). Much of the writing has been done in my own time, but Consensys has been increasingly supportive of me working on this in the course of my day job. In particular, during Q2 2023, the company granted me three months of writing leave to work full-time on the book. They also allowed me to put a liberal licence on everything. All this is extremely cool of them, and I am deeply grateful. Consensys is a wonderful employer, a terrific force for good in the ecosystem, and an incredible place to work.
+首先，要感谢我的雇主[Consensys](https://consensys.io/)。虽然我大部分写作是在业余时间完成的，但Consensys越来越支持我在工作期间进行这项工作。特别是在2023年第二季度，公司给了我三个月的写作假期，让我能够全职投入到这本书的写作中。他们还允许我为所有内容采用开放许可。这些都很酷，我也非常感激。Consensys是很棒的公司，是生态系统中向善的重要力量，也是一个让人难以置信的工作场所。
 
-So much of what I do involves writing about other people's work, and pretty much everything in this book is other people's work. I deeply value the openness and generosity of the Ethereum community. For me, this is one of its defining characteristics. Many people's contributions are cited throughout this book, and I am indebted to all of you. Being part of the Eth2 dev community has been the best experience of my life.
+我所做的很多都涉及去描述他人的工作，这本书中几乎所有内容都是其他人的劳动成果。我非常看重以太坊社区的开放性和慷慨。对我来说，这是它的定义性特征。本书引用了许多人的贡献，我要感谢她们所有人。能够成为Eth2开发者社区的一员是我人生中最好的经历。
 
-Thank you to the many GitCoin grant supporters who donated in support of the original annotated specification and my regular What's New in Eth2 newsletter. And to generous crypto friends, anon and otherwise, for your kind gifts over the years. Your support has encouraged me hugely as I've wrestled with the minutiae of the spec. I bloody love this community.
+感谢众多GitCoin资助者为最初的规范注解和我定期发布的“Eth2新动态（What's New in Eth2）”通讯提供的支持。也要感谢慷慨的加密朋友们（无论是匿名还是实名）多年来的馈赠。在我与规范的细节搏斗时，你们的支持给了我莫大的鼓励。我真的太爱这个社区了。
 
-Shout-out to the EthStaker community: you rock!
+向EthStaker社区致敬：你们太棒了！
 
-Finally, to circle back to Consensys: working daily with such brilliant, talented, generous, and knowledgeable people is a joy. The Protocols group, PegaSys, has been my home for the past five-plus years. It is where I helped establish the fabulous Protocols R&D team, and later kicked off the project that became Teku. Thank you for all your support and encouragement. I love working with all you wonderful people.
+最后，说回Consensys：每天能与如此优秀、有才华、慷慨和博学的人一起工作是一种享受。Protocols组（PegaSys）在过去五年多的时间里一直是我的家。在这里，我参与建立了出色的Protocols研发团队，后来还发起了最终成为Teku的项目。感谢所有的支持和鼓励。我很享受与你们这群优秀的人一起工作。
 
 # Part 1: Building <!-- /part1/ -->
 
@@ -129,7 +129,7 @@ TODO
 
 TODO
 
-# Part 2: Technical Overview <!-- /part2/ -->
+# Part 2: 技术概览 <!-- /part2/ -->
 
 ## Introduction <!-- /part2/introduction/* -->
 
@@ -157,329 +157,329 @@ TODO
 
 TODO
 
-## Consensus <!-- /part2/consensus/ -->
+## 共识 <!-- /part2/consensus/ -->
 
-Here's the opening sentence of [a paper](https://arxiv.org/abs/2110.10086) about attacks on the Ethereum&nbsp;2.0 consensus protocol:
+这是一篇关于对以太坊2.0共识协议的攻击的[论文](https://arxiv.org/abs/2110.10086)的开篇句：
 
-> The Proof-of-Stake (PoS) Ethereum consensus protocol is constructed by applying the finality gadget Casper FFG on top of the fork choice rule LMD GHOST, a flavor of the Greedy Heaviest-Observed Sub-Tree (GHOST) rule which considers only each participant's most recent vote (Latest Message Driven, LMD).
+> 以太坊的权益证明（PoS）共识协议是通过在分叉选择规则LMD GHOST 之上应用最终确定性小工具Casper FFG来构建的，LMD GHOST 是贪婪的、最重的可观察子树（Greedy Heaviest-Observed Sub-Tree, GHOST）规则的一种变体，它只考虑每个参与者的最近一次投票（最新消息驱动，Latest Message Driven, LMD）。
 
-If that makes perfect sense to you then feel free to skip this chapter entirely. Otherwise, read on!
+如果以上内容对你来说完全没问题，那么你可以跳过这一整章。否则，往下读吧！
 
-Our aim is to understand that sentence in all its parts. There's a lot to unpack, but we'll take time over it. We'll begin with some [preliminaries](/part2/consensus/preliminaries/) covering basics of consensus that are not particularly specific to Ethereum.
+我们的目标是理解这句话的所有部分。这里有很多东西要拆解，但我们会慢慢来。我们将从一些[初步内容](/part2/consensus/preliminaries/) 开始，涵盖一些不仅限于以太坊的共识基础知识。
 
-After a high-level [overview](/part2/consensus/overview/) of the how the whole consensus protocol fits together, we will dive down into its component parts, first [LMD GHOST](/part2/consensus/lmd_ghost/), then [Casper FFG](/part2/consensus/casper_ffg/). In the [Gasper](/part2/consensus/gasper/) section we will see how these two are combined together.
+在对整个共识协议如何组合在一起的高层次[概述](/part2/consensus/overview/)之后，我们将深入探讨它的组成部分，首先是[LMD GHOST](/part2/consensus/lmd_ghost/)，然后是[Casper FFG](/part2/consensus/casper_ffg/)。在[Gasper](/part2/consensus/gasper/)部分，我们将看到两者是如何结合在一起的。
 
-Enough subtleties and edge cases arise from the way that the LMD GHOST and Casper FFG protocols interoperate that I've dedicated the closing section of this chapter to discussing these [issues](/part2/consensus/issues/).
+由于LMD GHOST和Casper FFG协议之间的互操作方式导致很多微妙之处和边缘情况，我专门在这一章的结尾部分讨论了这些[议题](/part2/consensus/issues/)。
 
-### Preliminaries <!-- /part2/consensus/preliminaries/ -->
+### 基础知识 <!-- /part2/consensus/preliminaries/ -->
 
 <div class="summary">
 
-  - Consensus is a way to build reliable distributed systems with unreliable components.
-  - Blockchain-based distributed systems aim to agree on a single history of transactions.
-  - Proof of work and proof of stake are not consensus protocols, but enable consensus protocols.
-  - Many blockchain consensus protocols are "forkful".
-  - Forkful chains use a fork choice rule, and sometimes undergo reorganisations.
-  - In a "safe" protocol, nothing bad ever happens.
-  - In a "live" protocol, something good always happens.
-  - No practical protocol can be always safe and always live.
+  - 共识是一种通过不可靠的组件构建可靠的分布式系统的方法。
+  - 基于区块链的分布式系统旨在就单一的交易历史达成一致。
+  - 工作量证明和权益证明不是共识协议，而是使共识协议成为可能。
+  - 许多区块链共识协议是“可分叉”的。
+  - 可分叉的链使用分叉选择规则，有时也会经历重组。
+  - 在一个“安全”的协议中，永远不会发生坏事。
+  - 在一个“活跃”的协议中，总会发生好事。
+  - 现实中不存在始终同时保持安全和活跃的协议。
 
 </div>
 
-#### Introduction
+#### 引言
 
-This section covers the basics of consensus, fork choice, and finality. Most of it is not specific to Ethereum and is for general background understanding.
+本节介绍与共识、分叉选择和最终确定性相关的基础知识。其中大部分内容并不特定于以太坊，而是为提供一般背景。
 
-The challenge a consensus protocol seeks to solve is that of building a reliable distributed system on top of unreliable infrastructure. Consensus protocol research goes back to the 1970s and beyond, but the scale of the challenges we seek to solve in Ethereum are orders of magnitude more ambitious.
+共识协议试图解决的挑战是在不可靠的基础设施之上构建可靠的分布式系统。对共识协议的研究可以追溯到20世纪70年代甚至更早，但在以太坊中，我们所面对的挑战规模要大得多。
 
-Our goal in Ethereum's consensus layer is to enable tens of thousands of independent nodes around the world to proceed completely in lockstep with each other. Each node maintains a ledger containing the state of every account, and every ledger must match every other ledger. There must be no discrepancies; the nodes must agree, and they must come to agreement swiftly. This is what I mean by "a reliable distributed system".
+以太坊共识层的目标是使全球数万个独立节点能够完全同步运行。每个节点维护一个包含每个账户状态的账本，而每个账本必须与其他所有账本相匹配。不能有任何差异；节点必须达成一致，迅速地达成一致。这就是我所说的“可靠的分布式系统”。
 
-These nodes often run on [consumer grade hardware](https://stakefromhome.com/). They communicate over Internet connections that might be low bandwidth, or high latency, that lose packets, or drop out for indefinite periods of time. Node operators sometimes misconfigure their software, or don't keep it up to date. And, to make it all the more exciting, there is the possibility of large numbers of bad actors running rogue nodes or tampering with communications for their own gain. This is what I mean by "unreliable infrastructure".
+这些节点通常运行在[消费级的硬件](https://stakefromhome.com/)上。它们通过互联网这样一个可能有着低带宽、高延迟、丢包、或无限期中断的不可靠的异步网络通信。节点运营者有时会错误配置他们的软件，或者更新不及时。而且，更刺激的是，可能有大量的攻击者为获得利益而运行恶意节点或者篡改通信。这就是我所说的“不可靠的基础设施”。
 
-An explicit design goal for Ethereum is that it doesn't only run well when every node is running well and communicating well. We have done our best to design a system that will do its best to continue running even when the world beneath it is falling apart.
+以太坊的一个明确设计目标是，它不仅在每个节点都稳定运行且通信顺畅时表现良好。我们已竭尽全力设计了一个系统，即使其下的世界崩溃，它也能尽力维持运行。
 
-#### Coming to consensus
+#### 达成共识
 
-The Ethereum network comprises a large number of individual nodes. Each node acts independently, and nodes communicate over an unreliable, asynchronous network, the Internet. Any individual node might be honest &ndash; behaving correctly at all times &ndash; or faulty in any arbitrary way: simply down or non-communicative, following a different version of the protocol, actively trying to mislead other nodes, publishing contradictory messages, or any manner of other fault.
+以太坊网络由大量的单个节点组成。每个节点独立行动，节点之间通过不可靠的异步网络，即互联网进行通信。任一单个节点可能是诚实的&mdash;始终正确行动&mdash;或者以各种方式出错。简单的错误如停机或无法通信，或者是遵循了不同版本的协议、主动试图误导其他节点、发布矛盾的消息、以及任何其他形式的故障。
 
-Users submit transactions to this network of nodes, and the goal of the consensus protocol is that all correct nodes eventually agree on a single, consistent view of the history of transactions. That is, the order in which transactions were processed and the outcome of that processing. So, if I have 1&nbsp;ETH and I simultaneously tell the network that I am sending that 1&nbsp;ETH to Alice and also to Bob, we expect that eventually the network will agree that either I sent it to Alice or I sent it to Bob. It would be a failure if both Alice and Bob received my Ether, or if neither received it.
+用户提交交易至节点网络后，共识协议确保所有正确节点就交易历史（即交易处理的顺序及结果）达成一致。例如，如果我拥有1个以太币并尝试同时发送给Alice和Bob，我们会预期网络最终确认只有Alice或Bob其中一方收到这个以太币。若两者都收到或均未收到，则交易失败。
 
-A consensus protocol is the process by which this agreement on the ordering of transactions comes about.
+共识协议是就交易的排序达成一致的过程。
 
-Ethereum's consensus protocol actually "bolts together" two different consensus protocols. One is called [LMD GHOST](/part2/consensus/lmd_ghost/), the other [Casper FFG](/part2/consensus/casper_ffg/). The combination has become known as [Gasper](/part2/consensus/gasper/). In subsequent sections we will be looking at these both separately and in combination.
+实际上，以太坊的共识协议“拧和”了[LMD GHOST](/part2/consensus/lmd_ghost/)和[Casper FFG](/part2/consensus/casper_ffg/)两种协议，这一组合即[Gasper](/part2/consensus/gasper/)。我们将在后续内容中详细探讨这两种协议。
 
-#### Byzantine generals
+#### 拜占庭将军
 
-In a 1982 [paper](https://lamport.azurewebsites.net/pubs/byz.pdf) Leslie Lamport described in rather [whimsical terms](https://www.microsoft.com/en-us/research/publication/byzantine-generals-problem/) the fundamental problem that consensus systems are trying to solve - building reliable distributed systems.
+在 1982 年的一篇[论文]((https://lamport.azurewebsites.net/pubs/byz.pdf))中，Leslie&nbsp;Lamport用相当[诙谐的方式](https://www.microsoft.com/en-us/research/publication/byzantine-generals-problem/)描述了共识系统试图解决的基本问题——构建可靠的分布式系统。
 
-> We imagine that several divisions of the Byzantine army are camped outside an enemy city, each division commanded by its own general. The generals can communicate with one another only by messenger. After observing the enemy they must decide on a common plan of action.
+> 让我们想象拜占庭军队的几个军团分别扎营在敌方城市外，每个军团由自己的将军指挥。将军们只能通过信使相互通信。观察敌情后，他们需要制定统一的行动计划。
 
-This formulation makes clear that there is no overall holistic view, no God-mode in which we can see the whole situation in one glance and make a decision. We are simply one of the generals, and our only source of information about the other generals is the messages that we receive - messages that may be correct, or lies, or mistakes based on limited information, or delayed, or modified in transit. We have only a very limited local view, yet we must come to a view about the state of the whole system.
+这一表述说的很清楚没有全局的整体视角，没有上帝模式，我们无法“一览众山小”并做出决定。我们只是将军中的一个，关于其他将军的唯一信息来源是所收到的消息——它们可能是真实的，也可能是虚假的，或者是基于有限信息的误解，又或者是在传递过程中被延误或篡改。我们的视角非常有限，但我们必须尽可能全面理解整个系统的状态。
 
-It is important to keep this in mind at all times. When we draw diagrams of block chains and block trees, it is easy to assume that this is somehow "the state" of the whole system. But these diagrams only ever represent the local view of a single participant in the system. My node's view of the system is likely to differ from your node's view of the system, if only temporarily, because we operate over an unreliable network. For example, you will see blocks at different times from when I see them, or in a different order, or even different blocks from those that I see.
+需要时刻记住这一点。当我们绘制区块链和区块树时，往往假设这就是整个系统的某种“状态（the state）”。但这些图只能代表系统中单个参与者的局部视角。我的节点对系统的理解可能与你的不同，哪怕只是暂时的，因为我们都在不可靠的网络中运行。例如，我俩会在不同的时间，或者以不同的顺序看到同样的区块，更有甚者，我们所见的区块也许彼此大相径庭。
 
-Lamport captures the faultiness of the system in the following way.
+Lamport 用下面的话捕捉到系统的缺陷:
 
-> However, some of the generals may be traitors, trying to prevent the loyal generals from reaching agreement.
+> 然而,部分将军可能是叛徒，试图阻止忠诚的将军达成协议。
 
-These treacherous generals exhibit what we've come to call "Byzantine behaviour", or "Byzantine faults". They can act in any arbitrary way: delaying messages, reordering messages, outright lying, sending contradictory messages to different recipients, failing to respond at all, or any other behaviour we can think of.
+这些变节的将军象征着我们所称的“拜占庭行为”或“拜占庭故障”。他们可以以任意方式行事：拖延消息、对消息重新排序、径直撒谎、向不同收件人发送矛盾的消息、完全不作回应、或任何我们能想到的其他行为。
 
 <a id="img_consensus_messages"></a>
 <figure class="diagram" style="width: 50%">
 
-![A picture of a node with messages coming in.](images/diagrams/consensus-messages.svg)
+![一个节点接收消息的示意图](images/diagrams/consensus-messages.svg)
 
 <figcaption>
 
-I receive a ton of messages from other nodes, but I have no idea which are accurate, what order they were sent in, or if any are missing or just delayed. Somehow, we need to reach agreement.
+我收到来自其他节点的大量消息，但我不知道哪些是准确的，也不知道它们的发送顺序，以及是否有任何消息丢失或只是延迟。但无论如何，我们需要达成协议。
 
 </figcaption>
 </figure>
 
-The loyal generals need a method that reliably delivers an outcome on the following terms.
+忠诚的将军需要一种方法，以能够可靠地产生如下结果：
 
-> A. All loyal generals decide upon the same plan of action [e.g. "attack" or "retreat"], and
+> A. 所有忠诚的将军决定采取相同的行动计划（例如“进攻”或“撤退”），以及
 >
-> B. A small number of traitors cannot cause the loyal generals to adopt a bad plan.
+> B. 少数叛徒无法致使忠诚的将军们采用错误计划。
 
-Achieving consensus in such a Byzantine distributed system is not an easy problem to solve, but there have been several reasonably successful approaches over the years.
+在这种拜占庭分布式系统中达成共识并非易事，但多年来已有一些相当成功的方法。
 
-The first mainstream solution was the [Practical Byzantine Fault Tolerance](https://www.scs.stanford.edu/nyu/03sp/sched/bfs.pdf) (PBFT) algorithm published by Liskov and Castro in 1999. This relies on a relatively small and limited set of known consensus participants (called _replicas_). PBFT is always "safe", in the terms discussed [below](#safety) and does not have forks.
+第一种主流的解决方案是 1999 年 Liskov 和 Castro 发表的实用拜占庭容错（[Practical Byzantine Fault Tolerance](https://www.scs.stanford.edu/nyu/03sp/sched/bfs.pdf)，PBFT）算法。 这种算法依赖于相对较小和有限的已知共识参与者（被称为副本，replica）集合。在[下面](#safety)讨论的语境中，PBFT 总是“安全的”，且不会产生分叉。
 
-Nakamoto consensus, [invented by](https://bitcoinpaper.org/bitcoin.pdf) Satoshi Nakamoto for Bitcoin in 2008, takes a fundamentally different approach. Rather than limiting participants to a known set it uses proof of work to permissionlessly select a temporary leader for the consensus. Unlike PBFT, Nakamoto consensus allows forks and is not formally "safe".
+中本聪共识——由中本聪为比特币[发明](https://bitcoinpaper.org/bitcoin.pdf)于 2008 年——采取了截然不同的方法。它不是将参与者限制在某个已知集合中，而是使用工作量证明来无许可地选择临时领导者进行共识。与 PBFT 不同,中本聪共识允许分叉，且在形式上是不“安全的”。
 
-Many, many variants of these and other novel alternatives, such as the [Avalanche family](https://arxiv.org/pdf/1906.08936) of protocols, have since sprung up. Section 7, Related Work, of the [Avalanche white paper](https://arxiv.org/pdf/1906.08936) provides a good survey of the zoo of different consensus protocols currently in use in the blockchain world.
+自此以后，这些方法和其他的新颖替代方案（如 [Avalanche 系列协议](https://arxiv.org/pdf/1906.08936)）的许多变体已大量涌现。[Avalanche 白皮书](https://arxiv.org/pdf/1906.08936)的第 7 节“相关工作（Related Work）”对目前在区块链世界中使用的各种共识协议进行了很好的概述。
 
-#### Proof of Stake and Proof of Work
+#### 权益证明和工作量证明
 
-This is a good point at which to mention that neither proof of work nor proof of stake is a consensus protocol in itself. They are often (lazily) referred to as consensus protocols, but each is merely an enabler for consensus protocols.
+在此，我们不妨指出，工作量证明和权益证明本身都不是共识协议。它们经常被（懒散地）称为共识协议，但都只是共识协议的辅助工具。
 
-For the most part, both proof of work and proof of stake are [Sybil resistance](/part2/incentives/staking/#introduction) mechanisms that place a cost on participating in the protocol. This prevents attackers from overwhelming the protocol at low or zero cost.[^fn-types-of-proof]
+大多数情况下，工作量证明和权益证明都是[抵抗女巫攻击](/part2/incentives/staking/#introduction)的机制，它们为参与协议设定一种成本，而这可以防止攻击者以低成本或零成本压垮协议[^fn-types-of-proof]。
 
-[^fn-types-of-proof]: In proof of work, the "proof" you bring is a number that makes the block hash a certain value. This proves that you did the work to calculate it. In proof of stake, your proof is a private key that is associated with a deposit of stake on the blockchain. Other proof mechanisms are available, such as [proof of space and time](https://en.wikipedia.org/wiki/Proof_of_space#Proof_of_space-time).
+[^fn-types-of-proof]：在工作量证明中,你提供的”证明”是一个使区块哈希成为特定值的数字。这证明了你确实做了计算工作。在权益证明中，你的证明则是与区块链上的质押存款相关联的私钥。还有其他可用的证明机制,比如[时空证明](https://en.wikipedia.org/wiki/Proof_of_space#Proof_of_space-time)。
 
-Nevertheless, both proof of work and proof of stake are often fairly tightly coupled, via [fork choice rules](#fork-choice-rules), to the consensus mechanisms that they support. They provide a useful way to assign a weight, or a score, to a chain of blocks: in proof of work, the total work done; in proof of stake, the amount of value that supports a particular chain.
+尽管如此，通过[分叉选择规则](#fork-choice-rules)，工作量证明和权益证明通常都与它们所支持的共识机制紧密耦合。它们提供了一种有用的方法来为区块链分配权重或分数：在工作量证明中，是已完成的总工作量；在权益证明中，是支持特定区块链的价值量。
 
-Beyond these basic factors, both proof of work and proof of stake enable many kinds of different consensus protocols to be built on them, each with its own dynamics and trade-offs. Once again, the survey in section 7, Related Work, of the [Avalanche white paper](https://arxiv.org/pdf/1906.08936) is instructive.
+除了这些基本因素外，工作量证明和权益证明都支持在其基础上建立多种不同的共识协议，而每种协议都有自己的动态和权衡。同样，[Avalanche 白皮书](https://arxiv.org/pdf/1906.08936)第 7 节“相关工作”中的概述很有启发性。
 
-#### Block chains
+#### 区块的链
 
-The basic primitive that underlies blockchain technology is, of course, the block.
+区块链技术背后的基本原语当然是区块。
 
-A block comprises a set of transactions that a leader (the block proposer) has assembled. A block's contents (its payload) may vary according to the protocol.
+一个区块由一个领导者（区块提议者）收集的一组交易组成。一个区块的内容（有效负荷）可能因协议而异。
 
-  - The payload of a block on Ethereum's execution chain is a list of user transactions.
-  - The payload of a block on the pre-Merge proof of stake beacon chain was (mostly) a set of attestations made by other validators.
-  - Post-Merge beacon chain blocks also contain the execution payload (the user transactions).
-  - As and when [EIP-4844](https://eips.ethereum.org/EIPS/eip-4844) is implemented on Ethereum, blocks will contain commitments to opaque blobs of data alongside the ordered list of user transactions.
+  - 以太坊执行层链上的区块有效载荷是用户交易列表。
+  - 合并前的权益证明信标链上的区块有效载荷（大部分）是由其他验证者做出的一系列认证。
+  - 合并后的信标链区块也包含了执行层的有效载荷（用户交易）。
+  - 当 [EIP-4844](https://eips.ethereum.org/EIPS/eip-4844) 在以太坊上实现，区块中将包含对不透明的二进制大对象（Binary Large Object，blob）数据的承诺，以及用户交易的有序列表。
 
-Except for the special Genesis block, every block builds on and points to a parent block. Thus, we end up with a chain of blocks: a blockchain. Whatever the contents of blocks, the goal of the protocol is for all nodes on the network to agree on the same history of the blockchain.
+除了特殊的创世区块外，每个区块都建立在父区块之上，并指向父区块。这样，我们就得到了一个由区块组成的链条：区块链。无论区块的内容如何，协议的目标都是让网络上的所有节点对区块链的历史达成一致。
 
 <a id="img_consensus_block_chain"></a>
 <figure class="diagram" style="width: 90%">
 
-![A picture of a linear chain of blocks.](images/diagrams/consensus-block_chain.svg)
+![一个线性的区块的链的示意图](images/diagrams/consensus-block_chain.svg)
 
 <figcaption>
 
-A blockchain. Time moves from left to right and, except for the Genesis block, each block points to the parent block it builds on.
+一条区块链。时间自左向右流动，除创世区块外，每个区块都指向它的父母区块。
 
 </figcaption>
 </figure>
 
-The chain grows as nodes add their blocks to its tip. This is accomplished by temporarily selecting a "leader", an individual node that has the right to extend the chain. In proof of work the leader is the miner that first solves the proof of work puzzle for its block. In Ethereum's proof of stake the leader is selected pseudo-randomly from the pool of active stakers.
+当节点将它们的区块添加到链顶端时，链就会增长。这是通过临时选择一个“领导者”来实现的，“领导者”是有权扩展链的单个节点。在工作量证明中，领导者是首先为其区块解决工作量证明难题的矿工。在以太坊的权益证明中，“领导者”是从活跃的质押者池中随机选出的。
 
-The leader (usually known as the block proposer) adds a single block to the chain, and has full responsibility for selecting and ordering the contents of that block, though its block must be valid according to the protocol rules otherwise the rest of the network will simply ignore it.
+领导者（通常称为区块提议者）向链上添加一个单独的区块，并全权负责选择和排列该区块的内容，但其区块必须符合协议规则，否则网络的其他部分将直接忽略它。
 
-The use of blocks is an optimisation. In principle we could add individual transactions to the chain one by one, but that would add a huge consensus overhead. So blocks are batches of transactions, and sometimes [people argue](https://www.bitrawr.com/bitcoin-block-size-debate-explained) about how big those blocks should be. In Bitcoin, the block size is limited by the number of bytes of data in the block. In Ethereum's execution chain, the block size is limited by the block gas limit (that is, the amount of work needed to process the transactions in the block). [Beacon block](/part3/containers/blocks/#beaconblockbody) sizes are limited by hard-coded constants. The main benefit of bundling transactions into blocks comes from the interval between them (12 seconds in Eth2, 10 minutes on average in Bitcoin). This interval provides time for the network to converge - for as many nodes as possible to see each block and therefore to come to agreement on which block is the head of the chain.
+使用区块是一种优化。原则上，我们可以将单个交易逐个添加到链上，但这会增加巨大的共识开销。因此，区块是成批的交易，有时人们会[争论](https://www.bitrawr.com/bitcoin-block-size-debate-explained)这些区块应该有多大。在比特币中，区块大小受区块中数据字节数的限制。在以太坊的执行层链中，区块大小受区块的燃料限制（gas limit，即运行区块中的交易所需的工作量）。[信标区块](/part3/containers/blocks/#beaconblockbody)大小由硬编码的常数限制。
 
-#### Block trees
+#### 区块树
 
-Our neat diagram of a nice linear chain will for the most part reflect what we see in practice, but not always. Sometimes, due perhaps to network delays, or a dishonest block proposer, or client bugs, any particular node might see something more like the following.
+我们最初绘制的整洁线性链条大多数情况下可以反映实践中的情况，但不总是如此。有时，可能由于网络延迟、不诚实的区块提议者或客户端错误，任何特定节点都可能会看到类似下面的情况。
 
 <a id="img_consensus_block_tree"></a>
 <figure class="diagram" style="width: 90%">
 
-![A diagram of a block tree.](images/diagrams/consensus-block_tree.svg)
+![区块树的示意图](images/diagrams/consensus-block_tree.svg)
 
 <figcaption>
 
-In general, we might end up with a block tree rather than a block chain. Again, time moves from left to right and each block points to the parent block it builds on.
+一般来说，我们可能最终得到一棵区块树而不是区块链。时间同样是从左向右流动，每个区块都指向它的父母块。
 
 </figcaption>
 </figure>
 
-In real networks we can end up with something more like a block tree than a block chain. In this example very few blocks are built on their "obvious" parent.
+在实际的网络中，我们可能会得到更像区块树而不是区块链的东西。在这个例子中，很少有区块建立在“明显”的父母区块上。
 
-Why did the proposer of block $C$ build on $A$ rather than $B$?
+为什么区块 $C$ 的提议者接在 $A$ 区块后，而非 $B$ 的后面?
 
-  - It may be that the proposer of $C$ had not received block $B$ by the time it was ready to make its proposal.
-  - It may be that the proposer of $C$ deliberately wanted to exclude block $B$ from its chain, for example to steal its transactions, or to censor some transaction in $B$.
-  - It may be that the proposer of $C$ thought that block $B$ was invalid for some reason.
+  - 可能是 $C$ 的提议者在准备好做出提议时还没有接收到区块 $B$。
+  - 可能是 $C$ 的提议者特意要将 $B$ 从自己从自己的链中排除出去，例如为了窃取 $B$ 中的交易，或审查 $B$ 中的某些交易。
+  - 可能是由于某些原因，$C$ 的提议者认为 $B$ 区块无效。
 
-The first two reasons, at least, are indistinguishable to the wider network. All we know is that $C$ built on $A$, and we can never know why for certain.
+对于更广泛的网络来说，至少前两个原因是无法区分的。我们只知道 C 建立在 A 之上，但永远无法确定为什么。
 
-Similarly, why did the proposer of block $D$ build on $B$ rather than $C$? Any of the above reasons apply, and we can add another:
+同样，为什么区块 D 的提议者构建在区块 B 之上，而不是 C？上述的原因仍然适用，而且我们还可以添加另一个：
 
-  - The proposer of $D$ may have decided on some basis that there was more chance of the wider network eventually including $B$ than $C$. Thus, building $D$ on $B$ gives it more chance of making it into the eventual block chain than building $D$ on $C$.
+  - D 的提议者可能基于某些理由，认为更广泛的网络最终纳入 B 的可能性大于纳入 C。因此，在 B 之上构建 D 比在 C 之上构建 D 更有机会进入最终的区块链。
 
-The various branches in the block tree are called "forks". Forks happen naturally as a consequence of network and processing delays. But they can also occur due to client faults, malicious client behaviour, or protocol upgrades that change the rules, making old blocks invalid with respect to the new rules. The last of these is sometimes called a "hard fork".
+区块树中的各种分支被称为“分叉”。在网络和处理延迟的情况下会自然产生分叉。但也可能是由于客户端故障、客户端恶意行为或协议升级改变了规则，使得旧的区块在新规则下失效。后者通常被称为“硬分叉”。
 
-The existence of forking in a consensus protocol is a consequence of prioritising liveness over safety, in the terms discussed [below](#safety-and-liveness): if you were to consult nodes that are following different forks they would give you different answers regarding the state of the system. Non-forking consensus protocols exist, such as [PBFT](https://www.scs.stanford.edu/nyu/03sp/sched/bfs.pdf) in the classical consensus world and [Tendermint](https://blog.cosmos.network/the-4-classes-of-faults-on-mainnet-bfabfbd2726c#a2f1) in the blockchain world. These protocols always produce a single linear chain and are thus formally "safe". However, they sacrifice liveness on asynchronous networks such as the Internet: rather than forking in difficult network conditions, they might just stop entirely.
+共识协议中分叉的存在是将活性置于安全性之上的结果，这一点在[下文](#safety-and-liveness)中会讨论：如果你去问那些遵循不同分叉的节点，它们会就系统状态给出不同的答案。存在不产生分叉的共识协议，例如古典共识世界中的 [PBFT](https://www.scs.stanford.edu/nyu/03sp/sched/bfs.pdf) 和区块链世界的 [Tendermint](https://blog.cosmos.network/the-4-classes-of-faults-on-mainnet-bfabfbd2726c#a2f1)。这些协议总是产生单一的线性链，因此在形式上是“安全的”。不过，在互联网等异步网络上，它们牺牲了活性：与其分叉，它们彻底停止运转。
 
-#### Fork choice rules
+#### 分叉选择规则
 
-As we've seen, for all sorts of reasons &ndash; network delays, network outages, messages received out of order, malicious behaviour by peers &ndash; nodes across the network end up with different views of the network's state. Eventually, we want every correct node on the network to agree on an identical linear view of history and hence a common view of the state of the system. It is the role of the protocol's _fork choice rule_ to bring about this agreement.
+正如我们所见，由于各种原因——网络延迟、网络中断、消息接收顺序错误、对等节点的恶意行为——网络上的节点最终会对网络状态有不同的视图（view）。最终，我们希望网络上的每个正确节点都能对历史达成一致的线性视图，从而对系统状态形成共同的视图。协议的分叉选择规则（fork choice rule）就是为了达成这种一致。
 
-Given a block tree and some decision criteria based on a node's local view of the network, the fork choice rule is designed to select, from all the available branches, the one that is most likely to eventually end up in the final linear, canonical chain. That is, it will choose the branch least likely to be later pruned out of the block tree as nodes attempt to converge on a canonical view.
+当给定一个区块树，以及一些基于节点对网络的本地视图的决策标准时，分叉选择规则的设计初衷是从所有可用的分支中，选择最有可能成为最终的线性的规范的链的那一个。也就是说，当节点试图向规范视图靠拢时，它将选择最不可能被修剪出区块树的分支。
 
 <a id="img_consensus_block_tree_resolved"></a>
 <figure class="diagram" style="width: 90%">
 
-![A diagram of a block chain as a subset of the block tree.](images/diagrams/consensus-block_tree_resolved.svg)
+![区块链作为区块树子集的示意图](images/diagrams/consensus-block_tree_resolved.svg)
 
 <figcaption>
 
-The fork choice rule selects a head block from among the candidates. The head block identifies a unique linear block chain running back to the Genesis block.
+分叉选择规则从候选者中选择一个头块。头块标识出一条唯一的、可追溯到创世区块的线性区块链。
 
 </figcaption>
 </figure>
 
-The fork choice rule selects a branch implicitly by choosing a block at the tip of a branch, called the head block.
+分叉选择规则通过选择一个分支顶端的区块（被称为头块）来隐含地选择一个分支。
 
-For any correct node, the first criterion for any fork choice rule is that the block it chooses must be valid according to the protocol's rules, and all its ancestors must be valid. Any invalid block is ignored, and any blocks built on an invalid block are themselves invalid.
+对于任何正确的节点，任何分叉选择规则的第一标准是：它选择的区块必须是有效的，遵守了协议的规则，并且它的所有祖先也必须是有效的。任何无效的区块都会被忽略，而建立在无效区块上的任何区块自身也是无效的。
 
-Given that, there are many examples of different fork choice rules.
+鉴于此，有许多不同的关于分叉选择规则的例子。
 
-  - The proof of work protocols in Ethereum and Bitcoin use a "heaviest chain rule"[^fn-no-ghost] (sometimes called "longest chain", though that's not strictly accurate). The head block is the tip of the chain that represents the most cumulative "work" done under proof of work.
-  - The fork choice rule in Ethereum's proof of stake Casper FFG protocol is "follow the chain containing the justified checkpoint of the greatest height", and to never revert a finalised block.
-  - The fork choice rule in Ethereum's proof of stake LMD GHOST protocol is specified in its name: take the "Greediest Heaviest Observed SubTree". It involves counting accumulated votes from validators for blocks and their descendent blocks.
+  - 以太坊和比特币中的工作量证明协议使用“最重链规则”[^fn-no-ghost]（有时称为“最长链”，尽管这并不完全准确）。头块是在工作量证明下完成最多累积“工作”的链的顶端。
+  - 以太坊的权益证明 Casper FFG 协议中的分叉选择规则是“跟随包含最高的合理检查点的链”，并且永远不会回滚一个已经最终确定的区块。
+  - 以太坊的权益证明 LMD GHOST 协议中的分叉选择规则在其名称中有所体现：采用“最贪婪、最重的被观察子树”。它涉及去计算验证者对区块及其后代区块的累积投票。它也适用与 Casper FFG 相同的规则。
 
-We will properly unpack the second and third of these later in their respective sections.
+我们将在它们各自的章节中详细解释第二和第三个例子。
 
-You can perhaps see that each of these fork choice rules is a way to assign a numeric score to a block. The winning block, the head block, has the highest score. The idea is that all correct nodes, when they eventually see a certain block, will unambiguously agree that it is the head and choose to follow its branch whatever else is going on in their own views of the network. Thus, all correct nodes will eventually agree on a common view of a single canonical chain going back to genesis.
+你可能已经看出来了，这些分叉选择规则都是为一个区块分配分数的方法。获胜的区块——头块——有最高的分数。背后的想法是，当所有正确的节点最终看到某个区块时，将毫不含糊地认同它是头块，并选择跟随其分支，无论自己对网络有什么其它视图。因此，所有正确的节点最终都会就一个被追溯到创世纪的单一规范链的共同视图达成一致。
 
-[^fn-no-ghost]: Contrary to popular belief, Ethereum's proof of work protocol [did not use](https://ethereum.stackexchange.com/a/50693) any form of GHOST in its fork choice. This misconception is very persistent, probably due to the [Ethereum Whitepaper](https://ethereum.org/en/whitepaper/#modified-ghost-implementation). I eventually asked Vitalik about it, and he confirmed to me that although GHOST had been planned under PoW it was never implemented due to concerns about some unspecified attacks. The heaviest chain rule was simpler and well tested. It served us well.
+[^fn-no-ghost]: 与流行的看法相反，以太坊的工作量证明协议[并没有](https://ethereum.stackexchange.com/a/50693)在其分叉选择中使用任何形式的 GHOST。这是个非常顽固的误解，可能是因为[以太坊白皮书](https://ethereum.org/en/whitepaper/#modified-ghost-implementation)的缘故。我最终询问了 Vitalik，他向我确认，尽管曾计划在 PoW 中使用 GHOST，但由于担心一些未被指明的攻击，它从未被实施。最重链规则更简单，也经过良好测试。它干的很棒。
 
-#### Reorgs and reversions
+#### 重组（Reorgs）和回滚（reversions）
 
-As a node receives new blocks (and, under proof of stake, new votes for blocks) it will re-evaluate the fork choice rule in the light of the new information. Most commonly, a new block will be a child of the block that the node currently views as the head block, and the new block will become the head block.
+当一个节点接收到新的区块（和在权益证明中对区块的新投票）时，它将根据新信息重新评估分叉选择规则。最常见的情况是，新区块将是节点当前视为头块的区块的子区块，并将成为头块。
 
-However, sometimes the new block might be a descendent of some other block in the block tree. (Note that, if the node doesn't already have the parent block of the new block, it will need to ask its peers for it, and so on for any blocks it knows that it is missing.)
+然而，有时新区块可能是区块树中某个其他区块的后代。（请注意，如果节点还没有新区块的父区块，它需要询问其对等节点以获得父区块，对于它知道自己所缺失的任何其它区块也是如此。）
 
-In any case, running the fork choice rule on the updated block tree might indicate a head block that is on a different branch from the previous head block. When this happens, the node must perform a reorg (short for reorganisation), also known as a reversion. It will kick out (revert) blocks that it had previously included in its chain, and will adopt the blocks on the new head's branch.
+无论在何种情况下，在更新的区块树上运行分叉选择规则可能会指向一个与先前头块不同分支上的头块。当这种情况发生时，节点必须执行重组（reorg，是 reorganisation 的简写），这也被称为回滚。它将踢出（回滚）之前已经包含在其链中的区块，并将采用新的头块分支上的区块。
 
-In the following diagram, the node has evaluated block $F$ to be the head block, hence its chain comprises blocks $A$, $B$, $D$, $E$, and $F$. The node knows about block $C$, but it does not appear in its view of the chain; it is on a side branch.
+在以下图表中，节点评估区块 F 为头块，因此其链由区块 A, B, D, E, F 组成。节点知道区块 C，但它不在节点的链的视图中；区块 C 在一个侧分支上。
 
 <a id="img_consensus_reversion_0"></a>
 <figure class="diagram" style="width: 70%">
 
-![A diagram of a blockchain prior to a reversion.](images/diagrams/consensus-reversion-0.svg)
+![在回滚之前的区块链示意图](images/diagrams/consensus-reversion-0.svg)
 
 <figcaption>
 
-At this point, the node believes that block $F$ is the best head, and therefore its chain is blocks $[A \leftarrow B \leftarrow D \leftarrow E \leftarrow F]$.
+此时，节点认为区块 $F$ 最可能是头块，因此其链是区块 $[A \leftarrow B \leftarrow D \leftarrow E \leftarrow F]$.
 
 </figcaption>
 </figure>
 
-Some time later the node receives block $G$ which is not built on its current head block $F$, but on block $C$ on a different branch. Depending on the details of the fork choice rule, the node might still evaluate $F$ to be a better head than $G$ and therefore ignore $G$. But in this case we will assume that the fork choice rule indicates that $G$ is the better head block.
+一段时间后，节点接收到区块 G，它不是建立在节点当前的头块 F 上 ，而是建立在区块 C 的分支上。根据分叉选择规则的细节，节点可能仍然评估 F 为比 G 更好的头块，因此忽略 G。但在当前情形中，我们将假设分叉选择规则表明 G 是更好的头块。
 
-Blocks $D$, $E$, and $F$ are not ancestors of $G$, so they need to be removed from the node's canonical chain. Any transactions or information those blocks contain will be reverted, as if they were never received. The node must perform a full rewind to the state that it was in after processing block $B$.
+区块 D, E, 和 F 不是区块 G 的祖先，所以它们需要从节点的规范链中移除。这些区块包含的任何交易或信息都将被回滚，就好像它们从未被接收过一样。节点必须完全倒回处理区块 B 之后的状态。
 
-After rewinding to $B$, the node can add blocks $C$ and $G$ to its chain and process them accordingly. Once done, the node will have completed the reorganisation of its chain.
+倒回区块 B 后，节点可以将区块 C 和 G 和添加到其链中并相应地处理它们。一旦结束，节点就完成了其链的重组。
 
 <a id="img_consensus_reversion_1"></a>
 <figure class="diagram" style="width: 70%">
 
-![A diagram of a blockchain after a reversion.](images/diagrams/consensus-reversion-1.svg)
+![在回滚之后的区块链示意图](images/diagrams/consensus-reversion-1.svg)
 
 <figcaption>
 
-Now the node believes that block $G$ is the best head, and therefore its chain must change to the blocks $[A \leftarrow B \leftarrow C \leftarrow G]$.
+现在节点认为区块 $G$ 是头块的最佳选择，因此其链必须更改为区块 $[A \leftarrow B \leftarrow C \leftarrow G]$.
 
 </figcaption>
 </figure>
 
-Later, perhaps, a block $H$ might appear that builds on $F$. If the fork choice rule indicates that $H$ ought to be the new head, then the node will perform a reorg once again, reverting blocks back to $B$ and replaying the blocks on $H$'s branch.
+稍后，可能会出现一个建立在区块 F 之上的区块 H。如果分叉选择规则表明新的头块应当是 H，那么节点将再次执行重组，回滚区块到 B，并重新建立分支 H 上的区块。
 
-Short reorgs of one or two blocks in both proof of work and Ethereum's proof of stake protocol are not uncommon due to network delays in block propagation. Much longer reorgs ought to be exceedingly rare, unless the chain is under attack, or there is a bug in the formulation of &ndash; or the clients' implementations of &ndash; the fork choice rule.
+在工作量证明和以太坊的权益证明协议中，由于区块传播的网络延迟，短暂的一两个区块的重组并不罕见。除非链遭到攻击、分叉选择规则的制定或分叉选择规则客户端的实现存在漏洞，否则非常长的重组应该极为罕见。
 
-#### Safety and Liveness
+#### 安全性与活性
 
-Two important concepts that crop up frequently when discussing consensus mechanisms are _safety_ and _liveness_.
+在讨论共识机制时，经常蹦出来两个重要概念：安全性（safety）和活性（liveness）。
 
-##### Safety
+##### 安全性
 
-Informally, an algorithm is said to be safe if "nothing bad ever happens".[^fn-safety-liveness]
+非正式地说，如果“没有坏事发生”[^fn-safety-liveness]，某算法就被认为安全。
 
-[^fn-safety-liveness]: The helpful, intuitive definitions of safety and liveness I've quoted appear in short form in Lamport's 1977 paper, [Proving the Correctness of Multiprocess Programs](https://lamport.azurewebsites.net/pubs/proving.pdf), and as stated here in Gilbert and Lynch's 2012 paper, [Perspectives on the CAP Theorem](https://groups.csail.mit.edu/tds/papers/Gilbert/Brewer2.pdf).
+[^fn-safety-liveness]: 那个我所引用的关于安全性和活性的有用且直观的定义，最早以简短的形式出现在 Lamport 1977年的论文《多进程程序正确性的证明》（[Proving the Correctness of Multiprocess Programs](https://lamport.azurewebsites.net/pubs/proving.pdf)）中，Gilbert 和 Lynch 在 2012 年的论文《关于 CAP 定理的观点》（[Perspectives on the CAP Theorem](https://groups.csail.mit.edu/tds/papers/Gilbert/Brewer2.pdf)）中也这样定义它们。
 
-Examples of bad things that might happen in the blockchain context could be the double-spend of a coin, or the finalising of two conflicting checkpoints.
+在区块链环境中可能发生的坏事情的例子包括加密货币的双花（double-spend），或者两个彼此冲突的检查点的最终确定。
 
-An important aspect of safety in a distributed system is "consistency". That is, if we were to ask different (honest) nodes about the state of the chain at some point in its progress, such as the balance of an account at a particular block height, then we should always get the same answer, no matter which node we ask. In a safe system, every node has an identical view of the history of the chain that never changes.
+分布式系统中安全性的一个重要方面是“一致性”。也就是说，如果我们询问不同的（诚实的）节点在链的某个进展点上的状态，例如在特定区块高度时某个账户的余额，那么无论我们询问哪个节点，我们应该总是得到相同的答案。在一个安全的系统中，每个节点对链的历史都有着永不改变的相同视图。
 
-Effectively, safety means that our distributed system "behaves like a centralized implementation that executes operations atomically one at a time." (to quote [Castro and Liskov](https://www.scs.stanford.edu/nyu/03sp/sched/bfs.pdf)). A safe system is, in Vitalik's [taxonomy](https://medium.com/@VitalikButerin/the-meaning-of-decentralization-a0c92b76a274) of centralisation, logically centralised.
+实际上，安全性意味着我们的分布式系统“表现得像一个中心化实例，一次只执行一个原子化的操作。”（[引用 Castro 和 Liskov](https://www.scs.stanford.edu/nyu/03sp/sched/bfs.pdf)）。在 Vitalik 的[去中心化分类中](https://medium.com/@VitalikButerin/the-meaning-of-decentralization-a0c92b76a274)，一个安全的系统是在逻辑上是中心化的。
 
-##### Liveness
+##### 活性
 
-Again informally, an algorithm is said to be live if "something good eventually happens".
+再次非正式地说，如果“最终会发生一些好事”，那么某种算法就被认为具有活性。
 
-In a blockchain context we generally understand this to mean that the chain can always add a new block; it will never get into a deadlock situation in which it will not produce a new block with transactions in it.
+在区块链环境中，我们通常认为这意味着链总是可以添加一个新区块；它永远不会陷入无法产生包含交易的新区块的僵局。
 
-"Availability" is another way of looking at this. I want the chain to be available, meaning that if I send a valid transaction to an honest node it will eventually be included in a block that extends the chain.
+“可用性（Availability）”是看待这个问题的另一种方式。我希望链是可用的，这意味着如果我向一个诚实的节点发送一个有效的交易，它最终会被包含在一个扩展了这条链的区块中。
 
-##### You can't have both!
+##### 二者不可兼得！
 
-The CAP theorem is a famous result in distributed systems' theory that states that no distributed system can provide all three of (1) consistency, (2) availability, and (3) partition tolerance. Partition tolerance is the ability to function when communication between nodes is not reliable. For example, a network fault might split the nodes into two or more groups that can't communicate with each other.
+CAP 定理是分布式系统理论中的一个著名结果，它指出没有分布式系统可以同时提供（1）一致性（consistency），（2）可用性，和（3）分区容错性（partition tolerance）。分区容错性是指节点之间的通信不可靠时仍能正常运行的能力。例如，网络故障可能将节点分成两个或多个无法相互通信的群组。
 
-It is easy to demonstrate the CAP theorem in our blockchain context. Imagine that Amazon Web Services goes offline, such that all the AWS hosted nodes can communicate with each other, but none can talk to the outside world. Or that a country firewalls all connections in and out so that no gossip traffic can pass. Either of these scenarios divide the nodes into two disjoint groups, $A$ and $B$.
+在区块链的语境中很容易证明 CAP 定理。假如亚马逊网络服务（AWS）下线，使得所有由 AWS 托管的节点可以相互通信，但没有一个节点可以与外界通信；或者一个国家阻止所有进出的连接，使得没有任何流言（gossip）流量可以通过。这两种情况都将节点分成两个不相干的组，如 $A$ 与 $B$。
 
 <a id="img_consensus_partition"></a>
 <figure class="diagram" style="width: 50%">
 
-![A diagram of a network partition.](images/diagrams/consensus-partition.svg)
+![网络分区示意图](images/diagrams/consensus-partition.svg)
 
 <figcaption>
 
-The network is partitioned: the nodes in $A$ can talk among themselves, but cannot talk to any node in $B$, and vice versa.
+网络被分区：$A$ 中的节点可以彼此沟通，但它们不能与 $B$ 中的任何节点对话，反之亦然。
 
 </figcaption>
 </figure>
 
-Let's say that somebody connected to the network of group $A$ sends a transaction. If the nodes in $A$ process that transaction then they will end up with a state that is different from the nodes in group $B$, which didn't see the transaction. So, overall, we have lost consistency between all the nodes, and therefore safety. The only way to avoid this is for the nodes in group $A$ to refuse to process the transaction, in which case we have lost availability, and therefore liveness.
+假设连接到$A$组网络的某账户发送了一个交易。如果$A$组中的节点处理了该交易，那么他们最终的状态就与$B$组中的没有看到该交易的节点们不同。因此，总的来说，我们失去了所有节点之间的一致性，因此失去了安全性。避免这种情况的唯一方法是$A$组中的节点拒绝处理交易，在这种情况下我们失去了可用性，以及活性。
 
-In summary, the CAP theorem means that we cannot hope to design a consensus protocol that is both safe and live under all circumstances, since we have no option but to operate across an unreliable network, the Internet.[^fn-flp-theorem]
+总之，CAP 定理意味着，我们无法指望设计出一个在任何情况下都既安全又具有活性的共识协议，因为我们别无选择，只能在一个不可靠的网络上运行，即互联网。[^fn-flp-theorem]
 
-[^fn-flp-theorem]: The CAP theorem is related to another famous result described by Fisher, Lynch and Paterson in their 1985 paper, [Impossibility of Distributed Consensus with One Faulty Process](https://groups.csail.mit.edu/tds/papers/Lynch/jacm85.pdf), usually called the FLP theorem. This proves that, even in a reliable asynchronous network (that is, with no bound on how long messages can take to be received), just one faulty node can prevent the system from coming to consensus. That is, even this unpartitioned system cannot formally be both live and safe. Gilbert and Lynch's [paper](https://groups.csail.mit.edu/tds/papers/Gilbert/Brewer2.pdf) discusses the FLP theorem in section 3.2.
+[^fn-flp-theorem]: CAP 定理与 Fisher, Lynch 和 Paterson 在 1985 年的论文《故障进程中分布式共识的不可能性》（[Impossibility of Distributed Consensus with One Faulty Process](https://groups.csail.mit.edu/tds/papers/Lynch/jacm85.pdf)）中描述的另一个著名结果有关，通常称为 FLP 定理。这证明了，即使在一个可靠的异步网络中（即，消息传递所需时间没有限制），只要有一个故障节点，就可以阻止系统达成共识。也就是说，即使这个未分区的系统也不能同时具备活性和安全性。Gilbert 和 Lynch 在[一篇论文](https://groups.csail.mit.edu/tds/papers/Gilbert/Brewer2.pdf)的第 3.2 节讨论了 FLP 定理。
 
-##### Ethereum prioritises liveness
+##### 以太坊优先考虑活性
 
-The Ethereum consensus protocol offers both safety and liveness in good network conditions, but prioritises liveness when things are not running so smoothly. In the case of a network partition the nodes on each side of the partition will continue to produce blocks. However, finality (a safety property) will no longer occur on both sides of the partition. Depending on the proportion of stake managed by each side, either one side or neither side will continue to finalise.
+在网络状况良好的情况下，以太坊共识协议可同时提供安全性和活性，但在网络运行不太顺畅时，则优先考虑活性。在网络分区的情况下，分区两侧的节点将继续产生区块。不过，最终确定性（finality，安全性的一种属性）将不再在分区两侧一起发生。根据两侧管理的质押比例，要么一侧继续获得最终确定性，要么两侧都不会继续获得最终确定性。
 
-Eventually, unless the partition is resolved, both sides will regain finality due to the novel [inactivity leak](/part2/incentives/inactivity/) mechanism. But this results in the ultimate safety failure. Each chain will finalise a different history and the two chains will become irreconcilable and independent forever.
+最终，除非分区得到解决，否则双方都会因新颖的怠惰惩罚（[inactivity leak](/part2/incentives/inactivity/)）机制而重新获得最终确定性。但这也最终会导致安全故障。每条链将最终确定不同的历史，两条链将永远变得不可调和与独立。
 
-#### Finality
+#### 最终确定性（Finality）
 
-We're going to be discussing finality a good deal over the following sections, which is a safety property of the chain.
+我们将在接下来的章节中大量讨论最终确定性，这是链的安全性的属性。
 
-Finality is the idea that there are blocks that will never be reverted. When a block has been finalised, all the honest nodes on the network have agreed that the block will forever remain part of the chain's history, and therefore that all of its ancestors will remain in the chain's history. Finality makes your payment for pizza as irrevocable as if you'd handed over cash. It is the ultimate protection against double-spending.[^fn-finality-not-absolute]
+最终确定性是指有些区块永远不会被回滚。当一个区块被最终确定时，网络上的所有诚实节点都同意该区块将永远保留在链的历史中，因此它的所有祖先也将保留在链的历史中。最终确定性让你对比萨饼的支付不可撤销，就像用现金一样。这是对双花的终极保护。[^fn-finality-not-absolute]
 
-[^fn-finality-not-absolute]: It's worth noting that finality is never absolute. Whatever any protocol claims, if a supermajority of nodes agrees (for example via a software upgrade) to revert a bunch of finalised blocks, then that's going to happen. Ultimately, as in all things, the concept of finality is subservient to social consensus. See [On Settlement Finality](https://blog.ethereum.org/2016/05/09/on-settlement-finality) for further discussion.
+[^fn-finality-not-absolute]: 值得注意的是，最终确定性从来都不是绝对的。无论任何协议怎样声称，如果绝对多数节点同意（例如通过软件升级）回滚一堆已经最终确定的区块，那么这就会发生。归根结底，就像所有事物一样，最终确定性的概念服从于社会共识。有关进一步讨论，请参见《关于结算的最终确定性》（[On Settlement Finality](https://blog.ethereum.org/2016/05/09/on-settlement-finality)）。
 
-Some consensus protocols, like classical PBFT, or Tendermint, finalise every round (every block). As soon as a round's worth of transactions has been included on the chain, all the nodes agree that it will be there forever. On the one hand, these protocols are very "safe": once a transaction has been included on-chain, it will never be reverted. On the other hand, they are vulnerable to liveness failures: if the nodes cannot come to agreement &ndash; for example, if more than one third of them are down or unavailable &ndash; then no transactions can be added to the chain and it will stop dead.
+一些共识协议，如经典的 PBFT 或 Tendermint，每轮（每个区块）都会最终确定。一旦一轮交易被包含在链上，所有节点都同意它将永远存在。一方面，这些协议非常“安全”：一旦交易被包含在链上，它将永远不会被回滚。另一方面，它们容易发生活性故障：如果节点无法达成一致——例如，如果超过三分之一的节点关闭或不可用——那么就没有交易可以被添加到链上，链将停止运行。
 
-Other consensus protocols, such as Bitcoin's Nakamoto consensus, do not have any finality mechanism at all. There is always the possibility that someone will reveal an alternative, heavier chain. When this happens, all honest nodes must reorg their chains accordingly, reverting whatever transactions they previously processed. Heuristics such as how many confirmations your block has are only approximations to finality, they are not guarantees.[^fn-cdc-40k]
+其他共识协议，如比特币的中本聪共识，根本没有任何最终确定性机制。总是存在有人呈现出一个更重的替代链的可能性。当这种情况发生时，所有诚实的节点必须相应地重组他们的链，回滚他们之前处理的任何交易。诸如你的区块有多少确认之类的启发式方法只是对最终确定性的近似值，而无法保证。[^fn-cdc-40k]
 
-[^fn-cdc-40k]: At the time of writing, at least one exchange requires [40000 confirmations](https://www.reddit.com/r/Crypto_com/comments/w9qmbx/40000_confirmations_and_7_days_to_send_etc_to_cdc/) for deposits from the Ethereum Classic network. That means that forty thousand blocks must be built on top of a block containing the deposit transaction before the exchange will process it, which takes about six days. The requirement reflects concern about the vulnerability of ETC's low hash rate proof of work chain to 51% attacks - it is relatively easy for an attacker to revert blocks at will. The reality is that, in the face of a well-crafted 51% attack, no number of confirmations is truly safe.
+[^fn-cdc-40k]: 在撰写本文时，至少有一个交易所要求从以太坊经典网络的存款中获得 [40000 个确认](https://www.reddit.com/r/Crypto_com/comments/w9qmbx/40000_confirmations_and_7_days_to_send_etc_to_cdc/)。这意味着在包含存款交易的区块之上必须建立四万个区块，交易所才会处理它，这大约需要六天时间。这一要求反映了对 ETC低哈希率工作量证明链易受 51% 攻击的脆弱性的担忧——对于攻击者来说，随意回滚区块相对容易。事实上，面对一个精心设计的 51% 攻击，无论多少确认次数都无法达到真正安全。
 
-Ethereum's consensus layer prioritises liveness, but also strives to offer a safety guarantee in the form of finality when circumstances are favourable. This is an attempt to gain the best of both worlds. Vitalik has [defended this](https://ethresear.ch/t/explaining-the-liveness-guarantee/4228/8?u=benjaminion) as follows.[^fn-liveness-during-nonfinality]
+以太坊的共识层优先考虑活性，但也努力在有利的情况下以最终确定性的方式提供安全保证。这是试图两全其美的尝试。Vitalik 这样[辩护](https://ethresear.ch/t/explaining-the-liveness-guarantee/4228/8?u=benjaminion)：[^fn-liveness-during-nonfinality]
 
-> The general principle is that you want to give users "as much consensus as possible": if there’s $>2/3$ then we get regular consensus, but if there's $<2/3$ then there’s no excuse to just stall and offer nothing, when clearly it’s still possible for the chain to keep growing albeit at a temporarily lower level of security for the new blocks. If an individual application is unhappy with that lower level of security, it’s free to ignore those blocks until they get finalized.
+> 一般原则是你想给予用户“尽可能多的共识”：如果达成共识的节点 $>2/3$ 那么我们就会得到常规的共识。但如果 $<2/3$，那也不需要停下来什么也不做，显然，尽管新区块的安全性暂时降低，链仍然可能继续增长。如果个别应用不满意较低的安全级别，它可以自由地忽略那些区块，直到它们被最终确定。
 
-[^fn-liveness-during-nonfinality]: The value of this was evident when the beacon chain [stopped finalising](https://offchain.medium.com/post-mortem-report-ethereum-mainnet-finality-05-11-2023-95e271dfd8b2) for around an hour on the 12th of May, 2023. Participation in consensus dropped from over 99% of validators to around 40% for the duration. Ordinary Ethereum users and applications, however, would have barely noticed. Blocks continued to be produced (albeit fewer than normal) and transactions continued to be executed.
+[^fn-liveness-during-nonfinality]: 这一点的价值在 2023 年 5 月 12 日信标链在大约一个小时中停止最终确定（[stopped finalising](https://offchain.medium.com/post-mortem-report-ethereum-mainnet-finality-05-11-2023-95e271dfd8b2)）时显现。在此期间，参与共识的验证者从超过99% 下降到大约 40%。然而，普通的以太坊用户和应用程序几乎没有察觉。区块继续被生产（尽管少于正常情况），交易继续被执行。
 
-Finality in Ethereum's consensus layer is delivered by the Casper FFG mechanism that we'll be exploring soon. The idea is that, periodically, all honest validators agree on fairly recent checkpoint blocks that they will never revert. That block and all its ancestor blocks are then "final" - they will never change, and if you consult any honest node in the network about them or their ancestors you will always get the same answer.
+在以太坊的共识层中，最终确定性是由 Casper FFG 机制提供的，我们很快就会探讨这一机制。其原理是，所有诚实的验证者定期就最近的检查点区块达成一致，他们永远不会撤销这些区块。然后，该区块及其所有祖先区块就是“最终确定的”区块——它们永远不会改变，如果你向网络中的任何诚实节点询问它们或其祖先区块的情况，你总会得到相同的答案。
 
 <a id="img_consensus_finality"></a>
 <figure class="diagram" style="width: 80%">
