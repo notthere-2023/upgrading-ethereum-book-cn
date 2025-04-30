@@ -484,30 +484,30 @@ CAP 定理是分布式系统理论中的一个著名结果，它指出没有分�
 <a id="img_consensus_finality"></a>
 <figure class="diagram" style="width: 80%">
 
-![A diagram showing a finalised portion of chain and a forkful portion.](images/diagrams/consensus-finality.svg)
+![一个图表，显示一条链已被最终确定的部分和分叉部分。](images/diagrams/consensus-finality.svg)
 
 <figcaption>
 
-The honest nodes have agreed that the checkpoint and all its ancestor blocks are "final" and will never be reverted. There are therefore no forks before the checkpoint. The chain descending from the checkpoint remains liable to forking.
+诚实的节点已经同意检查点及其所有祖先区块是“最终确定的”且永远不会被回滚。因此，在检查点之前没有分叉。检查点之后的链仍然可能发生分叉。
 
 </figcaption>
 </figure>
 
-Ethereum's finality is "economic finality". It is theoretically possible for the protocol to finalise two conflicting checkpoints, that is, two contradictory views of the chain's history. However, it is possible only at enormous and quantifiable cost. For all but the most extreme attack or failure scenarios, final means final.
+以太坊的最终确定性是“经济最终确定性”。理论上，协议可能会最终确定两个相冲突的检查点，即对链的历史的两个矛盾视图。然而，这只有在巨大且可量化的成本下才可能出现。除了最极端的攻击或失败情景外，最终确定就是最终确定。
 
-The [section on Casper FFG](/part2/consensus/casper_ffg/) dives into the detail of how this finality mechanism works.
+[Casper FFG 部分](/part2/consensus/casper_ffg/)深入探讨了这种最终确定性机制的工作原理。
 
-#### See also
+#### 另见
 
-It's always worth reading anything that Leslie Lamport has had a hand in, and the original 1982 paper by Lamport, Shostak, and Pease on [The Byzantine Generals Problem](https://lamport.azurewebsites.net/pubs/byz.pdf) contains many insights. While the algorithm they propose is hopelessly inefficient in modern terms, the paper is a good introduction to reasoning about consensus protocols in general. The same is true of Castro and Liskov's seminal 1999 paper [Practical Byzantine Fault Tolerance](https://www.scs.stanford.edu/nyu/03sp/sched/bfs.pdf) which significantly influenced the design of Ethereum's Casper FFG protocol. However, you might like to contrast these "classical" approaches with the elegant simplicity of proof of work, as described by Satoshi Nakamoto in the 2008 [Bitcoin white paper](https://bitcoinpaper.org/bitcoin.pdf). If proof of work has just one thing in its favour, it is its simplicity.
+Leslie Lamport 参与的内容总是值得一读，他与 Shostak 和 Pease 合著的 1982 年原始论文《拜占庭将军问题》（[The Byzantine Generals Problem](https://lamport.azurewebsites.net/pubs/byz.pdf)）包含了许多洞见。虽然他们提出的算法在当今条件下已经效率极低，但该论文对推理一般共识协议是很好的引入。Castro 和 Liskov 在1999 年发表的开创性论文《实用拜占庭容错》（[Practical Byzantine Fault Tolerance](https://www.scs.stanford.edu/nyu/03sp/sched/bfs.pdf)）也是如此，它对以太坊的 Casper FFG 协议的设计产生了重大影响。但是，你可能会想将这些“经典”方法与中本聪在 2008 年[比特币白皮书](https://bitcoinpaper.org/bitcoin.pdf)中描述的工作证明优雅的简洁性相对比。如果说工作量证明有什么优点的话，那就是它的简洁。
 
-We've referred above to Gilbert and Lynch's 2012 paper, [Perspectives on the CAP Theorem](https://groups.csail.mit.edu/tds/papers/Gilbert/Brewer2.pdf). It is a very readable exploration of the concepts of consistency and availability (or safety and liveness in our context).
+上文中我们提到了 Gilbert 和 Lynch 在 2012 年的论文《CAP 定理的视角》（[Perspectives on the CAP Theorem](https://groups.csail.mit.edu/tds/papers/Gilbert/Brewer2.pdf)）。这篇论文对一致性和可用性（或我们语境中的安全性和有效性）概念进行了深入探讨，有很强的可读性。
 
-The Ethereum beacon chain underwent a seven block reorg in May 2022 due to differences between client implementations of the fork choice rule. These differences were known at the time and thought to be harmless. That proved to be not so. Barnabé Monnot's [write-up](https://barnabe.substack.com/p/pos-ethereum-reorg) of the incident is very instructive.
+由于分叉选择规则的客户端实现之间存在差异，以太坊信标链在 2022 年 5 月经历了七个区块的重组。这些差异在当时是众所周知的，并且被认为是无害的。事实证明并非如此。巴纳贝-蒙诺（Barnabé Monnot）对这一事件的[描述](https://barnabe.substack.com/p/pos-ethereum-reorg)非常有启发性。
 
-Vitalik's blog post [On Settlement Finality](https://blog.ethereum.org/2016/05/09/on-settlement-finality/) provides a deeper and more nuanced exploration of the concept of finality.
+Vitalik 的博客文章《关于结算的最终确定性》（[On Settlement Finality](https://blog.ethereum.org/2016/05/09/on-settlement-finality/)）提供了对最终确定性概念更深入、更细致的探索。
 
-Our ideal for the systems we are building is that they are _politically_ decentralised (for permissionlessness and censorship resistance), _architecturally_ decentralised (for resilience, with no single point of failure), but _logically_ centralised (so that they give consistent results). These criteria strongly influence how we design our consensus protocols. Vitalik explores these issues in his article, [The Meaning of Decentralization](https://medium.com/@VitalikButerin/the-meaning-of-decentralization-a0c92b76a274).
+对于我们正在构建的系统，我们的理想是它们是政治去中心化的（以实现无许可和抗审查），架构去中心化的（以实现无单点故障的抗逆力），但在逻辑上是中心化的（以实现一致的结果）。这些标准对我们如何设计共识协议有很大影响。Vitalik 在《去中心化的意义》（[The Meaning of Decentralization](https://medium.com/@VitalikButerin/the-meaning-of-decentralization-a0c92b76a274)）一文中探讨了这些问题。
 
 ### Overview <!-- /part2/consensus/overview/ -->
 
