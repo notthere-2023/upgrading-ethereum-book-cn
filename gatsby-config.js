@@ -35,7 +35,7 @@ module.exports = {
     version: version,
     canonical: canonical,
   },
-  pathPrefix: '/' + version,
+  //pathPrefix: '/' + version,
   trailingSlash: 'always',
   plugins: [
     {
