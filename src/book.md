@@ -266,7 +266,7 @@ Lamport 用下面的话捕捉到系统的缺陷:
 
 区块链技术背后的基本原语当然是区块。
 
-一个区块由一个领导者（区块提议者）收集的一组交易组成。一个区块的内容（有效负荷）可能因协议而异。
+一个区块由一个领导者（区块提议者）收集的一组交易组成。一个区块的内容（有效载荷，payload）可能因协议而异。
 
   - 以太坊执行层链上的区块有效载荷是用户交易列表。
   - 合并前的权益证明信标链上的区块有效载荷（大部分）是由其他验证者做出的一系列认证。
@@ -433,7 +433,7 @@ Lamport 用下面的话捕捉到系统的缺陷:
 
 CAP 定理是分布式系统理论中的一个著名结果，它指出没有分布式系统可以同时提供（1）一致性（consistency），（2）可用性，和（3）分区容错性（partition tolerance）。分区容错性是指节点之间的通信不可靠时仍能正常运行的能力。例如，网络故障可能将节点分成两个或多个无法相互通信的群组。
 
-在区块链的语境中很容易证明 CAP 定理。假如亚马逊网络服务（AWS）下线，使得所有由 AWS 托管的节点可以相互通信，但没有一个节点可以与外界通信；或者一个国家阻止所有进出的连接，使得没有任何流言（gossip）流量可以通过。这两种情况都将节点分成两个不相干的组，如 $A$ 与 $B$。
+在区块链的语境中很容易证明 CAP 定理。假如亚马逊网络服务（AWS）下线，使得所有由 AWS 托管的节点可以相互通信，但没有一个节点可以与外界通信；或者一个国家阻止所有进出的连接，使得没有任何广播（gossip）流量可以通过。这两种情况都将节点分成两个不相干的组，如 $A$ 与 $B$。
 
 <a id="img_consensus_partition"></a>
 <figure class="diagram" style="width: 50%">
@@ -509,49 +509,49 @@ Vitalik 的博客文章《关于结算的最终确定性》（[On Settlement Fin
 
 对于我们正在构建的系统，我们的理想是它们是政治去中心化的（以实现无许可和抗审查），架构去中心化的（以实现无单点故障的抗逆力），但在逻辑上是中心化的（以实现一致的结果）。这些标准对我们如何设计共识协议有很大影响。Vitalik 在《去中心化的意义》（[The Meaning of Decentralization](https://medium.com/@VitalikButerin/the-meaning-of-decentralization-a0c92b76a274)）一文中探讨了这些问题。
 
-### Overview <!-- /part2/consensus/overview/ -->
+### 概述 <!-- /part2/consensus/overview/ -->
 
 <div class="summary">
 
-  - Nodes and validators are the actors of the consensus system.
-  - Slots and epochs regulate consensus time.
-  - Blocks and attestations are the currency of consensus.
-  - Ethereum's consensus protocol combines two separate consensus protocols.
-  - "LMD GHOST" essentially provides liveness.
-  - "Casper FFG" provides finality.
-  - Together they are sometimes known as "Gasper".
+  - 节点和验证者是共识系统中的行动者。
+  - 时隙（slots）和时段（epochs）调节共识时间。
+  - 区块和认证（attestation）是共识的货币。
+  - 以太坊的共识协议结合了两个独立的共识协议。
+  - 本质上，“LMD GHOST”提供活性。
+  - “Casper FFG”提供最终确定性。
+  - 它们有时被合称为“Gasper”。
 
 </div>
 
-#### Introduction
+#### 引言
 
-The last section gave a broad view of blockchain consensus; in this section we will tighten the focus to Ethereum's proof of stake consensus. I've tried to follow a path that gives enough information to make sense of things, without wandering off into the detailed technical weeds on either side. All those weeds are well explored in the [annotated specification](/part3/) and other chapters, and I've included some links for those who want to branch off and go exploring.
+上一节描述了区块链共识的大致情况；本节中，我们将聚焦于以太坊的权益证明共识。我试图跟随一条通过提供足够的信息以理解事物的小径，而不深入两侧技术细节的杂草。所有这些细节都将在[规范注解](/part3/)和其他章节中被深入探讨。我也加了一些链接，供想要去分支探索的人使用。
 
-The first thing we must cover is the Ethereum-specific terminology that we will be using throughout.
+首先必须介绍的是我们将在整个过程中使用的、以太坊特有的术语。
 
-##### Nodes and Validators
+##### 节点（Nodes）和验证者（Validators）
 
-The main participants in the Ethereum network are _nodes_. A node's role is to validate consensus and form the communication backbone with other nodes.
+以太坊网络的主要参与者是节点（nodes）。节点的角色是验证共识，并与其他节点形成通信的主干。
 
-Consensus is formed by _validators_, which (in true Ethereum style) are horribly misnamed, as they don't really validate anything - that's done by the nodes. Each validator represents an initial 32 ETH stake. It has its own [secret key](/part2/building_blocks/signatures/#key-pairs), and the related public key that is its identity in the protocol. Validators are attached to nodes, and a single node can host anything from zero to hundreds or thousands of validators. Validators attached to the same node do not act independently, they share the same view of the world.[^fn-validators-nodes]
+验证者（validators）形成共识，而“验证者”（符合以太坊一贯作风）是一种可怕的误称，因为它们实际上并不验证任何东西——验证是由节点完成的。每个验证者代表最初质押的 32 个以太币。它有自己的秘钥（[secret key](/part2/building_blocks/signatures/#key-pairs)），以及作为其在协议中身份的相关公钥。验证者附在节点上，一个节点可以托管从零到成百数千个验证者。附到同一个节点的验证者们不会独立行动，它们共享着对世界的同一视图。[^fn-validators-nodes]
 
-[^fn-validators-nodes]: It would serve us well to be mindful of this when making claims about the decentralisation of Ethereum. Having, say, 600,000 validators active on the network is a long way from having 600,000 independent actors. Looking at the number of nodes, and the distribution of validators across nodes, will give more useful metrics for Ethereum's decentralisation.
+[^fn-validators-nodes]: 谈到以太坊的去中心化时，牢记这一点非常有益。比如说，网络上有 60 万个活跃的验证者，这与有 60 万个独立行动者相比还相去甚远。观察节点的数量以及验证者在节点间的分布，将为以太坊的去中心化提供更有用的衡量指标。
 
-A interesting feature of proof of stake that sets it apart from proof of work is that, under PoS, we know our validator set. We have a complete list of all the public keys that we expect to be active at any time. Knowing our validator set enables us to achieve finality, as we can identify when we have achieved a majority vote of participants.[^fn-accountable-safety-jargon]
+使权益证明不同于工作量证明的一个有趣特点是，在权益证明中，我们知道验证者集合（validator set）。有一份完整的列表，上面有预计在任意时刻活跃的所有公钥。知道验证者集合使我们能够实现最终确定性，因为可以识别出在何时获得了参与者的多数票。[^fn-accountable-safety-jargon]
 
-[^fn-accountable-safety-jargon]: In consensus jargon, we can have "accountable safety".
+[^fn-accountable-safety-jargon]: 按照共识术语中的说法，我们能够拥有“可问责的安全性（accountable safety）”。
 
-##### Slots and Epochs
+##### 时隙（Slots）和时段（Epochs）
 
-Time is strictly regimented in Ethereum's proof of stake consensus, which is a major change from proof of work, which only had casual relationship with time - PoW makes some attempt to keep block intervals constant on average, but that's all.
+在以太坊的权益证明共识中，时间被严格规定，而工作量证明只与时间有着松散的关系——它试图保持区块间隔的平均恒定，但仅此而已。
 
-The two most important intervals are the _slot_, which is [12 seconds](/part3/config/configuration/#seconds_per_slot) exactly, and the _epoch_, which is [32 slots](/part3/config/preset/#slots_per_epoch), or 6.4 minutes. Slots and epochs progress regularly and relentlessly, whatever else may be happening on the network.
+最重要的两种时间间隔是时隙（slot，[12 秒](/part3/config/configuration/#seconds_per_slot)）和时段（epoch，[32 个时隙](/part3/config/preset/#slots_per_epoch)或 6.4 分钟）。无论网络中发生什么，时隙和时段都会规律而持续地推进。
 
-##### Blocks and Attestations
+##### 区块和认证（Attestations）
 
-Every slot, exactly one validator is [selected](/part3/helper/accessors/#get_beacon_proposer_index) to propose a _block_. The block [contains](/part3/containers/blocks/#beaconblockbody) updates to the beacon state, including attestations that the proposer knows about, as well as the [execution payload](/part3/containers/execution/#executionpayload) containing Ethereum user transactions. The proposer shares its block with the whole network via a gossip protocol.
+在每个时隙中，系统都会[选择](/part3/helper/accessors/#get_beacon_proposer_index)出一名验证者去提议区块。区块[包含](/part3/containers/blocks/#beaconblockbody)对信标状态（beacon state）的更新，这些更新包括提议者所收集到的认证，以及以太坊用户交易的执行负载（[execution payload](/part3/containers/execution/#executionpayload)）。通过广播协议（gossip protocol），提议者与整个网络共享其区块。
 
-A slot can be empty: a block proposer might be offline, or propose an invalid block, or have its block subsequently reorged out of the chain. These things should not happen often in a well-running beacon chain, but the protocol is intended to be robust when empty slots occur.
+时隙可以是空的：区块提议者可能离线，或提出一个无效的区块，或其区块随后被重组出链。在一条运行良好的信标链中，不应经常发生这类事情，但协议有意在出现空时隙时保持稳健。
 
 Every epoch, every validator gets to share its view of the world exactly once, in the form of an _attestation_. An attestation [contains](/part3/containers/dependencies/#attestationdata) votes for the _head_ of the chain that will be used by the LMD GHOST protocol, and votes for _checkpoints_ that will be used by the Casper FFG protocol. Attestations are also gossiped to the whole network. Like blocks, attestations can be missing for all sorts of reasons, and the protocol can tolerate this to various extents - crudely, the quality of consensus will decrease as the participation rate of attesters decreases.[^fn-attestation-rate]
 
