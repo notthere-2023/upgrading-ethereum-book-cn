@@ -553,55 +553,55 @@ Vitalik 的博客文章《关于结算的最终确定性》（[On Settlement Fin
 
 时隙可以是空的：区块提议者可能离线，或提出一个无效的区块，或其区块随后被重组出链。在一条运行良好的信标链中，不应经常发生这类事情，但协议有意在出现空时隙时保持稳健。
 
-Every epoch, every validator gets to share its view of the world exactly once, in the form of an _attestation_. An attestation [contains](/part3/containers/dependencies/#attestationdata) votes for the _head_ of the chain that will be used by the LMD GHOST protocol, and votes for _checkpoints_ that will be used by the Casper FFG protocol. Attestations are also gossiped to the whole network. Like blocks, attestations can be missing for all sorts of reasons, and the protocol can tolerate this to various extents - crudely, the quality of consensus will decrease as the participation rate of attesters decreases.[^fn-attestation-rate]
+在每个时段中，每个验证者都会通过认证的形式分享一次它对世界的视图。认证[包含](/part3/containers/dependencies/#attestationdata)对链头（head of the chain）的投票（LMD GHOST 协议将会使用）和对检查点（checkpoints）的投票（Casper FFG 协议将会使用）。认证也会被广播到整个网络。与区块一样，认证也可能因各种原因缺失，协议可以在不同程度上承受这种情况——粗略地说，认证者参与率的降低会让共识质量下降。[^fn-attestation-rate]
 
-[^fn-attestation-rate]: The [Beaconcha.in](https://beaconcha.in) site shows attestation participation rate (also called Voting Participation) on a per epoch basis. It is a good measure of network health. The rate often exceeds 99%, which is an outstanding level of performance for a massively distributed consensus protocol.
+[^fn-attestation-rate]: [Beaconcha.in](https://beaconcha.in) 网站按时段呈现认证参与（也被称为投票参与）。这是衡量网络健康程度的好方法。该比率通常超过 99%.，对于一个大规模分布式共识协议，这是非常出色的水准。
 
-The function of the epoch is to spread out the workload of handling all those attestations. By attesting, every validator is informing every other validator of its view of the world, which could amount to an immense amount of network traffic and processing load if it were all done at once. Spreading the attestation workload across all 32 slots of an epoch keeps resource usage low. In each slot, committees comprising only $\frac{1}{32}$ of the validators make attestations.
+时段的功能是将处理这些验证的工作量分散开来。通过认证，每个验证者都会将自己对世界的视图告知其他验证者。如果同时进行所有认证，可能会产生巨大的网络流量和处理负载。将某个时段中的认证工作量分散到所有 32 个时段，可以保持低资源使用率。在每个时段，只由占总量 $\frac{1}{32}$ 的验证者们组成委员会（committees）负责认证。
 
-The protocol incentivises block and attestation production and accuracy via a system of rewards and penalties for validators. We don't need to go into these now; there is a whole [separate chapter](/part2/incentives/) on all of that.
+通过验证者的奖惩系统，协议激励区块与认证的生产和准确性。我们当下不需要深入探讨这些；会有[单独一章](/part2/incentives/)来阐述所有这些问题。
 
-##### Slashing
+##### 罚没（Slashing）
 
-In proof of work, producing a block is expensive. This is a strong incentive for miners to behave well, in line with the protocol's goals, to ensure that their blocks are included.
+在工作量证明中，生产一个区块成本很高。这极大地激励了矿工，使他们按照协议的目标正确行事，以确保自己的区块被纳入链。
 
-In proof of stake, creating blocks and attestations is almost free[^fn-nothing-at-stake]. We need a way to prevent attackers from exploiting this to disrupt the network. This is the role of _slashing_. Validators that equivocate over blocks or attestations are subject to being [slashed](/part2/incentives/slashing/), which means that they are ejected from the validator set and fined some portion of their stake. Simply put, equivocation means saying two contradictory things. It might be proposing two different blocks for the same slot, or making two attestations that are inconsistent with each other, that no validator honestly following the protocol would have made.
+在权益证明中，创建区块和认证几乎是免费的 [^fn-nothing-at-stake]。需要一种方法阻止攻击者利用这一点去破坏网络。这就是罚没的作用。对区块或认证模棱两可的验证者将被[罚没](/part2/incentives/slashing/)，这意味着他们会被移除出验证者集合，部分质押也被用作罚款。简单地说，模棱两可（equivocation）就是说出两件相互矛盾的事情。它可能是在同一个时隙中提议两个不同区块，或者做出两个相互矛盾的认证，而任何遵守协议的诚实验证者都不会如此行事。
 
-[^fn-nothing-at-stake]: This is sometimes called the "nothing at stake problem".
+[^fn-nothing-at-stake]: 有时这被称为“无利害关系问题（nothing at stake problem）”。
 
-#### The Ghosts in the Machine
+#### 机器中的幽灵
 
-With some terminology behind us we can begin to outline Ethereum's actual consensus mechanism.
+了解了一些术语之后，让我们开始概述以太坊实际的共识机制。
 
-Ethereum's proof of stake consensus protocol is actually a combination of two separate consensus protocols, known individually as LMD GHOST[^fn-lmd-name], and Casper FFG[^fn-ffg-name]. These two have been "bolted together" to form the consensus protocol we have implemented for Eth2 - the combined protocol is sometimes known by the portmanteau "Gasper".
+以太坊的权益证明共识协议实际上是两个独立共识协议的结合，它们分别被称为 LMD GHOST[^fn-lmd-name] 和 Casper FFG[^fn-ffg-name]。这两个协议已被“拧和在一起”，形成我们为 Eth2 实现的共识协议——这个组合协议有时被称为 “Gasper”。
 
-[^fn-lmd-name]: "Latest Message Driven, Greedy Heaviest Observed Subtree". I will unpack the naming in the specific [LMD GHOST chapter](/part2/consensus/lmd_ghost/#naming).
+[^fn-lmd-name]: “最新消息驱动的，贪婪的、最重的被观察子树（Latest Message Driven, Greedy Heaviest Observed Subtree）”。我将在[LMD GHOST 章节](/part2/consensus/lmd_ghost/#naming)中具体解释这个命名。
 
-[^fn-ffg-name]: "Casper the Friendly Finality Gadget". Again, I will unpack this slightly curious naming when we get to the specific [Casper FFG chapter](/part2/consensus/casper_ffg/#naming).
+[^fn-ffg-name]: “友好的最终确定性小工具 Casper（Casper the Friendly Finality Gadget）”。同样，我将在进入特定的 [Casper FFG 章节](/part2/consensus/casper_ffg/#naming)时解释这个略显奇怪的命名。
 
-Combining the two in Gasper is an attempt to get the best of both worlds in terms of liveness and safety. In essence, LMD GHOST provides slot-by-slot liveness (it keeps the chain running), while Casper FFG provides safety (it protects the chain from long reversions). LMD GHOST allows us to keep churning out blocks on top of one-another, but is forkful and therefore not formally safe. Casper FFG modifies the LMD GHOST fork choice rule to periodically bless the chain with finality. Nevertheless, as [previously discussed](/part2/consensus/preliminaries/#ethereum-prioritises-liveness), Ethereum prioritises liveness. Therefore, in situations in which Casper FFG is unable to confer finality, the chain still continues to grow via the LMD GHOST mechanism.
+将这两者结合为Gasper是为了在活性和安全性两方面都获得最佳效果。本质上，LMD GHOST 依次为每个时隙提供活性（让链保持运行），而 Casper FFG 提供安全性（保护链免受大规模回滚）。LMD GHOST 使我们继续产出区块，但是这种产出是可分叉的，因此从理论上说并不安全。Casper FFG 修改 LMD GHOST 的分叉选择规则，定期为链赋予最终确定性。尽管如此，[如前所述](/part2/consensus/preliminaries/#ethereum-prioritises-liveness)，以太坊优先考虑活性。因此，在 Casper FFG 无法赋予最终确定性的情况下，链仍然会通过 LMD GHOST 机制继续增长。
 
-This bolted-together consensus mechanism is not always pretty. We can sometimes see the joins, and the interaction between the two has led to subtle issues that we will discuss [later](/part2/consensus/issues/). However, in the spirit of Ethereum, it is a workable engineering solution that serves us well in practice.
+拧和在一起的这个共识机制并不总是好用。有时我们会看到接合处——两种共识机制间的互动导致了一些[稍后](/part2/consensus/issues/)将讨论的微妙问题。然而，本着以太坊的精神，它是实用的工程解决方案，实践中运行良好。
 
-##### History
+##### 历史
 
-The detailed history of Gasper is bound up with the development of the individual components, LMD GHOST and Casper FFG, which we will review in their respective sections. But we note here that Casper FFG was never designed to be a standalone consensus mechanism.
+Gasper 的详细历史与其组件 LMD GHOST 和 Casper FFG 的发展密切相关，我们将在它们各自的部分中分别回顾这两个组件的历史。要在这里指出的是，Casper FFG 从未被设计为一个独立的共识机制。
 
-As stated in the [Casper FFG paper](https://arxiv.org/abs/1710.09437),
+正如 [Casper FFG 论文](https://arxiv.org/abs/1710.09437)中所述：
 
-> Casper the Friendly Finality Gadget is an overlay atop a _proposal mechanism_ &ndash; a mechanism which proposes blocks.
+> 友好的最终确定性小工具 Casper 是建立在提议机制（proposal mechanism，提议区块的机制）之上的覆盖层。
 
-So, there is an underlying block proposal mechanism &ndash; which implies an underlying consensus mechanism &ndash; that Casper FFG sits on top of, delivering a kind of meta-consensus that confers finality on the blockchain.
+因此，有一个底层的区块提议机制——这意味着有一个提供某种元共识的底层共识机制，为区块链赋予最终确定性——而 Casper FFG 建立于其上。
 
-The original plan was to apply Casper FFG as a proof of stake overlay on top of Ethereum's proof of work consensus. Casper FFG would confer finality &ndash; a property that proof of work chains lack &ndash; on the chain on a periodic basis, say, every 100 blocks. This was intended to be the first step in weaning Ethereum off proof of work. With the finality guarantee, we could have reduced the proof of work block reward, and thereby reduced the overall hash power as an interim step towards replacing mining with full proof of stake at some future date.
+最初的计划是将 Casper FFG 作为权益证明的覆盖层，叠加在以太坊的工作量证明共识之上。Casper FFG 将为链定期赋予（如，每 100 个区块）最终确定性——这是工作量证明区块链链所缺乏的属性。这被视作是让以太坊摆脱工作量证明的第一步。有了最终确定性的保证，我们可以减少工作量证明的区块奖励，从而减少总的哈希算力，并将此作为未来的一个过渡步骤，以迈向完全的权益证明，替代挖矿。
 
-By the end of 2017, this plan had become quite advanced. [EIP-1011](https://eips.ethereum.org/EIPS/eip-1011), Hybrid Casper FFG, describes the architecture in detail, and there was even a [testnet](https://hackmd.io/@aTTDQ4GiRVyyce6trnsfpg/Hk6UiFU7z?type=view) that [went live](https://web.archive.org/web/20230630135033/https://nitter.it/karl_dot_tech/status/947503029166546946) on the 31st of December, 2017.
+2017 年底，这个计划已相当成熟。[EIP-1011](https://eips.ethereum.org/EIPS/eip-1011), 混合 Casper FFG (Hybrid Casper FFG)，详细描述了该架构，在 2017 年 12 月 31 日甚至有一个[测试网](https://hackmd.io/@aTTDQ4GiRVyyce6trnsfpg/Hk6UiFU7z?type=view)[上线](https://web.archive.org/web/20230630135033/https://nitter.it/karl_dot_tech/status/947503029166546946)。
 
-In early 2018, however, that plan was superseded. The limited bandwidth of the Ethereum Virtual Machine constrained the size of the validator set that EIP-1011 could support, in turn leading to a minimum stake of 1500&nbsp;ETH, which was seen as undesirable. Around the same time, paths towards a full, much more scalable proof of stake protocol became clearer, and we began working on the design that became Ethereum&nbsp;2.0.
+然而，该计划在 2018 年初被取代。以太坊虚拟机的有限带宽限制了EIP-1011 能支持的验证者集合的大小，进而导致最低质押量为 1500 个以太币，这被视作是不可取的。大约在同一时间，通向完整的、更具可扩展性的权益证明协议的路径变得更加清晰，我们开始着手设计，这就是后来的以太坊 2.0。
 
-Due to its generic nature, Casper FFG was able to survive the redesign and was adopted into Ethereum&nbsp;2.0, not as an overlay on proof of work, but as an overlay on a new proof of stake protocol called LMD GHOST.
+因其通用性，Casper FFG 在重新设计中幸存下来，并被以太坊 2.0 采用——不是作为工作量证明的覆盖层，而是作为一个新的权益证明协议 LMD GHOST 的覆盖层。
 
-##### A finality gadget
+##### 最终确定性小工具（A finality gadget）
 
 When we say that Casper FFG overlays an existing block proposal mechanism, we mean that it takes an existing block tree and prunes it in a specific way. Casper FFG modifies the fork choice of the underlying block tree by making some of its branches inaccessible.
 
