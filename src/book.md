@@ -353,7 +353,7 @@ Lamport 用下面的话捕捉到系统的缺陷:
 
   - 以太坊和比特币中的工作量证明协议使用“最重链规则”[^fn-no-ghost]（有时称为“最长链”，尽管这并不完全准确）。头块是在工作量证明下完成最多累积“工作”的链的顶端。
   - 以太坊的权益证明 Casper FFG 协议中的分叉选择规则是“跟随包含最高的合理检查点的链”，并且永远不会回滚一个已经最终确定的区块。
-  - 以太坊的权益证明 LMD GHOST 协议中的分叉选择规则在其名称中有所体现：采用“最贪婪、最重的被观察子树”。它涉及去计算验证者对区块及其后代区块的累积投票。它也适用与 Casper FFG 相同的规则。
+  - 以太坊的权益证明 LMD GHOST 协议中的分叉选择规则在其名称中有所体现：采用“最贪婪、最重的可被观察子树”。它涉及去计算验证者对区块及其后代区块的累积投票。它也适用与 Casper FFG 相同的规则。
 
 我们将在它们各自的章节中详细解释第二和第三个例子。
 
@@ -557,7 +557,7 @@ Vitalik 的博客文章《关于结算的最终确定性》（[On Settlement Fin
 
 [^fn-attestation-rate]: [Beaconcha.in](https://beaconcha.in) 网站按时段呈现认证参与（也被称为投票参与）。这是衡量网络健康程度的好方法。该比率通常超过 99%.，对于一个大规模分布式共识协议，这是非常出色的水准。
 
-时段的功能是将处理这些验证的工作量分散开来。通过认证，每个验证者都会将自己对世界的视图告知其他验证者。如果同时进行所有认证，可能会产生巨大的网络流量和处理负载。将某个时段中的认证工作量分散到所有 32 个时段，可以保持低资源使用率。在每个时段，只由占总量 $\frac{1}{32}$ 的验证者们组成委员会（committees）负责认证。
+时段的功能是将处理认证的工作量分散开来。通过认证，每个验证者都会将自己对世界的视图告知其他验证者。如果同时进行所有认证，可能会产生巨大的网络流量和处理负载。将某个时段中的认证工作量分散到所有 32 个时隙可以保持低资源使用率。在每个时隙，只由占总量 $\frac{1}{32}$ 的验证者们组成委员会（committees）负责认证。
 
 通过验证者的奖惩系统，协议激励区块与认证的生产和准确性。我们当下不需要深入探讨这些；会有[单独一章](/part2/incentives/)来阐述所有这些问题。
 
@@ -575,7 +575,7 @@ Vitalik 的博客文章《关于结算的最终确定性》（[On Settlement Fin
 
 以太坊的权益证明共识协议实际上是两个独立共识协议的结合，它们分别被称为 LMD GHOST[^fn-lmd-name] 和 Casper FFG[^fn-ffg-name]。这两个协议已被“拧和在一起”，形成我们为 Eth2 实现的共识协议——这个组合协议有时被称为 “Gasper”。
 
-[^fn-lmd-name]: “最新消息驱动的，贪婪的、最重的被观察子树（Latest Message Driven, Greedy Heaviest Observed Subtree）”。我将在[LMD GHOST 章节](/part2/consensus/lmd_ghost/#naming)中具体解释这个命名。
+[^fn-lmd-name]: “最新消息驱动的，贪婪的、最重的可被观察子树（Latest Message Driven, Greedy Heaviest Observed Subtree）”。我将在[LMD GHOST 章节](/part2/consensus/lmd_ghost/#naming)中具体解释这个命名。
 
 [^fn-ffg-name]: “友好的最终确定性小工具 Casper（Casper the Friendly Finality Gadget）”。同样，我将在进入特定的 [Casper FFG 章节](/part2/consensus/casper_ffg/#naming)时解释这个略显奇怪的命名。
 
@@ -603,128 +603,131 @@ Gasper 的详细历史与其组件 LMD GHOST 和 Casper FFG 的发展密切相�
 
 ##### 最终确定性小工具（A finality gadget）
 
-When we say that Casper FFG overlays an existing block proposal mechanism, we mean that it takes an existing block tree and prunes it in a specific way. Casper FFG modifies the fork choice of the underlying block tree by making some of its branches inaccessible.
+当说到 Casper FFG 覆盖现有的区块提议机制时，我们的意思是它采用了一个现有的区块树并以特定方式对其进行了修剪。通过使底层区块树的某些分支无法访问，Casper FFG 修改了这些区块树的分叉选择。
 
-Consider this block tree produced by some underlying consensus mechanism, whether it be proof of work, or LMD GHOST in proof of stake.
+请将这个区块树看作是由某种底层共识机制产生的，无论是工作量证明还是权益证明中的 LMD GHOST。
 
 <a id="img_gasper_blocktree"></a>
 <figure class="diagram" style="width: 70%">
 
-![A Diagram of a block tree with three forks.](images/diagrams/gasper-blocktree.svg)
+![一棵有三条分叉的区块树示意图。](images/diagrams/gasper-blocktree.svg)
 
 <figcaption>
 
-An arbitrary block tree with three forks (branches). Any of blocks $I$, $E$, or $M$ could be the tip of the chain. (The block labels are for convenience and do not imply a particular ordering.)
+有三条分叉（分支）的任意区块树。区块 $I$, $E$, $M$ 中的任意一个都可能是区块顶端（这些区块标识的选择是为了方便，而非暗示某种特定的排序）。
 
 </figcaption>
 </figure>
 
-In this situation, I have three candidate head blocks, $I$, $E$, and $M$. Under proof of work's longest chain rule, the choice of head block is obvious: I must choose M since it has the greatest block height, or (almost) equivalently the greatest amount of work done. Under LMD GHOST we can't choose a head block from this information alone, we'd need to see the votes from the other validators in order to make a choice.
+在上图情形中，有三个候选的头块：$I$, $E$, $M$。在工作量证明的最长链规则下，头块的选择显而易见：必须选择 $M$，因为它具有最大的区块高度，也就是（几乎）等同于完成最多的工作量。在 LMD GHOST 下，我们不能仅凭这一信息去选择头块，还需要看到其他验证者的投票才能做出选择。
 
-The challenge is that the chain from blocks $J$ to $M$ might be from an attacker. The attacker might have mined that chain in secret and revealed it later in a so-called 51% attack. Proof of work nodes would have no choice but to reorg to make $M$ the head, thereby favouring the attacker's chain and potentially becoming vulnerable to double-spends.
+挑战在于，从区块 $J$ 到 $M$ 的链可能来自于攻击者。攻击者可能秘密挖掘了该链，然后在所谓的 51% 攻击中使用它。工作量证明下的节点别无选择，只能进行重组以使 $M$ 成为头部，从而偏向攻击者的链，并可能受到双花攻击（double-spends）。
 
-The value that Casper FFG brings is that it confers finality. Let's say that block $D$ is marked as final by Casper FFG (which automatically finalises blocks $A$, $B$, and $C$). Finalisation modifies the fork choice rule of the underlying protocol so that any branch with blocks that competes with block $D$ &ndash; that is, any block not descended from $D$ &ndash; is excluded. Equivalently, branches are pruned so that there are no forks prior to the finalised block.
+Casper FFG 的价值在于它赋予了最终确定性。假设区块 $D$ 被 Casper FFG 标记为是“最终的”（这会自动最终确定区块 $A$、$B$ 和 $C$）。最终确定性会修改底层协议的分叉选择规则，以排除任何与区块 $D$ 竞争的分支——即任何不是由 $D$ 派生的区块。换句话说，分支会被修剪，确保已被最终确定的区块前面没有分叉。
+
 
 <a id="img_gasper_blocktree_finalised"></a>
 <figure class="diagram" style="width: 70%">
 
-![A diagram of the same block tree after a block on one of the branches has been finalised.](images/diagrams/gasper-blocktree_finalised.svg)
+![同一棵区块树示意图，其中一个分支被最终确定。](images/diagrams/gasper-blocktree_finalised.svg)
 
 <figcaption>
 
-We have the same block tree as above, but now block $D$ has been finalised. The Casper FFG fork choice says that any chain not including block $D$ is ignored, so our head block is now unambiguously $E$.
+这里的区块树和上一幅图片中的一样。但现在区块 $D$ 已经获得最终确定性。Casper FFG 分叉选择认为任何不包括区块 $D$ 的链都应该被忽略。毫无疑问，我们的头块现在是 $E$。
 
 </figcaption>
 </figure>
 
-When block $D$ is finalised, the fork choice must ignore the branches that begin with blocks $F$ and $J$. We end up with a single candidate head block, $E$.
+当区块 $D$ 被最终确定，分叉选择必须忽略以区块 $F$ 和区块 $J$ 打头的分支。我们最后只保留了一个候选头块：$E$。
 
-Essentially, the finality delivered by Casper FFG prevents long reorganisations (reversions). No finalised block, or ancestor of a finalised block, will ever be reverted. In Ethereum's Casper FFG implementation we must qualify "ever", with, "without burning at least 1/3 of the entire amount of staked Ether". This is the economic finality that the proof of stake chain provides.
+从根本上说，Casper FFG 所提供的最终确定性可以防止大规模的重组（回滚）。任何已获得最终确定性的区块或已获得最终确定性的区块的祖先们都永远不会被回滚。在以太坊中实现的 Casper FFG 中，我们必须对“永远”加以限定，即“不会烧掉至少 1/3 的以太币质押总量”的前提下。这就是权益证明区块链提供的经济最终确定性。
 
-#### Conclusion
+#### 结论
 
-As a reminder, [this](/part2/consensus/) is the sentence we are trying to understand in all its parts.
+回过头来，[这](/part2/consensus/)是那句话，我们尝试理解它的所有部分。
 
-> The Proof-of-Stake (PoS) Ethereum consensus protocol is constructed by applying the finality gadget Casper FFG on top of the fork choice rule LMD GHOST, a flavor of the Greedy Heaviest-Observed Sub-Tree (GHOST) rule which considers only each participant's most recent vote (Latest Message Driven, LMD).
+> 以太坊的权益证明（PoS）共识协议是通过在分叉选择规则 LMD GHOST 之上应用最终确定性小工具 Casper FFG 来构建的，LMD GHOST 是贪婪、最重的可被观察子树（Greedy Heaviest-Observed Sub-Tree, GHOST）规则的一种变体，它只考虑每个参与者的最近一次投票（最新消息驱动，Latest Message Driven, LMD）。
 
-We've spent some time on what a consensus protocol is and does, and touched a little on proof of stake. We talked about finality, and at a high level I've illustrated how Casper FFG forms a "finality gadget" applied on top of LMD GHOST as a block proposal mechanism.
+我们花了一些时间讨论什么是共识协议，以及它做了什么，并简单了解权益证明。我们讨论了最终确定性，在较高层面上说明了 Casper FFG 如何形成一个“最终确定性小工具”，它被应用于作为区块提议机制的 LMD GHOST 之上。
 
-Much work remains, however. In the next sections we will take deeper dives into [LMD GHOST](/part2/consensus/lmd_ghost/), [Casper FFG](/part2/consensus/casper_ffg/), and how they combine to form the [Gasper](/part2/consensus/gasper/) protocol.
+还有很多工作要做。接下来的章节中，我们将更深入探讨 [LMD GHOST](/part2/consensus/lmd_ghost/), [Casper FFG](/part2/consensus/casper_ffg/)，以及它们如何结合而成 [Gasper](/part2/consensus/gasper/) 协议。
 
-#### See also
+#### 另见
 
-On the history of how everything came together, Vitalik made a terrific [tweet storm](https://web.archive.org/web/20230630135150/https://nitter.it/VitalikButerin/status/1029900695925706753). Consolidated versions are available [here](https://web.archive.org/web/20180816143143/https://www.trustnodes.com/2018/08/16/vitalik-buterin-tells-story-race-vlad-zamfir-implement-proof-stake-casper) and [here](https://hackmd.io/@liangcc/BJZDR1mIX?type=view). He discusses weak subjectivity a little, which we will deal with [later](/part2/validator/weak_subjectivity/).
+关于这一切是如何汇聚在一起的历史，Vitalik 发起过一场精彩的[推文风暴](https://web.archive.org/web/20230630135150/https://nitter.it/VitalikButerin/status/1029900695925706753)。可以在[这里](https://www.trustnodes.com/2018/08/16/vitalik-buterin-tells-story-race-vlad-zamfir-implement-proof-stake-casper)和[这里](https://hackmd.io/@liangcc/BJZDR1mIX?type=view)找到整理后的版本。他稍微讨论了一下弱主观性，我们[后面](/part2/validator/weak_subjectivity/)会处理这个问题。
 
-The [Proof of Stake FAQ](https://web.archive.org/web/20231109183738/https://vitalik.ca/general/2017/12/31/pos_faq.html) remains an excellent primer on many of the topics we'll be covering.
+《权益证明常见问题》（[Proof of Stake FAQ](https://vitalik.ca/general/2017/12/31/pos_faq.html)）依然是对我们将要讨论的许多话题的极好入门读物。
 
-Joachim Neu's presentation, [The Why and How of PoS Ethereum's Consensus Problem](https://www.youtube.com/watch?v=2nMS-TK_tMw) (at ETHconomics, Devconnect 2022), is a very accessible insight into the availability&ndash;finality trade-off, and how Ethereum seeks to manage it. We'll pick up again on the idea of "nested ledgers" when we get to the [Gasper protocol](/part2/consensus/gasper/).
+在 Devconnect 2022 的 ETHconomics 上，Joachim Neu 的演讲《以太坊权益证明的共识问题的缘由与解决方案》（[The Why and How of PoS Ethereum's Consensus Problem](https://www.youtube.com/watch?v=2nMS-TK_tMw)）对于可用性与最终确定性之间的权衡以及以太坊如何处理这一问题提供了非常易懂的见解。当我们讨论到 [Gasper 协议](/part2/consensus/gasper/)时，我们将再次提到“嵌套账本（nested ledgers）”的概念。
 
 ### LMD Ghost <!-- /part2/consensus/lmd_ghost/ -->
 
 <div class="summary">
 
-  - LMD GHOST is a fork choice rule used by nodes to determine the best chain.
-  - It assigns weights to branches based on votes from all active validators.
-  - LMD GHOST does not provide finality, but does support a confirmation rule.
-  - Slashing is used to solve the "nothing at stake" problem.
+  - LMD GHOST 是一种分叉选择规则，被节点用来确定最佳的链。
+  - 它根据所有活跃验证者的投票而为链的不同分支赋予权重。
+  - LMD GHOST 不提供最终确定性，但的确支持确认规则（confirmation rule）。
+  - 罚没被用来解决“无利害关系”问题。
 
 </div>
 
-#### Introduction
+#### 介绍
 
-In this section we will consider LMD GHOST in isolation, ignoring completely the Casper FFG finality overlay[^fn-casper-and-gasper-next]. LMD GHOST is the essence of a consensus mechanism in itself &ndash; it is a fork choice rule, just as the heaviest chain rule in Nakamoto consensus is &ndash; and has its own sets of properties and trade-offs.
+在这一部分，我们将单独探讨 LMD GHOST，完全忽略 Casper FFG 的最终确定性覆盖层[^fn-casper-and-gasper-next]。LMD GHOST 自身就是一种共识机制的核心——它是一个分叉选择规则，就像中本聪共识中的最重链规则一样——并且有其自身属性和权衡。
 
-[^fn-casper-and-gasper-next]: The next section covers [Casper FFG](/part2/consensus/casper_ffg/), and the one after that the combination of the two into [Gasper](/part2/consensus/gasper/).
+[^fn-casper-and-gasper-next]: 下一节将介绍 Casper FFG (/part2/consensus/casper_ffg/)，再下一节将讨论两者结合形成的 Gasper (/part2/consensus/gasper/)。
 
-For now, we will be considering only the "how it works" part of the story - the happy flow. We will look at the "how it can go wrong" part later, in the [Issues and Fixes](/part2/consensus/issues/) section.
+当前，我们只考虑故事中的“它如何运作”这个部分——畅通无阻的流程。在后面的“议题和修复（[Issues and Fixes](/part2/consensus/issues/)）”部分，我们会去探索“它如何出错”的那部分。
 
-#### Naming
+#### 命名
 
-The name LMD GHOST comprises two acronyms, for "Latest Message Driven", and "Greedy Heaviest-Observed Sub-Tree". We'll unpack GHOST first, then LMD.
+LMD GHOST 由两个缩写词组成，分别是“最新信息驱动的（Latest Message Driven, LMD）”，和“贪婪的、最重的可被观察子树（Greedy Heaviest-Observed Sub-Tree, GHOST）”。我们会先打开 GHOST，然后是 LMD。
 
 ##### GHOST
 
-The GHOST protocol comes from a 2013 [paper by Sompolinsky and Zohar](https://eprint.iacr.org/2013/881) about how to safely improve transaction throughput on Bitcoin. Increasing the block size, or decreasing the interval between blocks, makes the chain more susceptible to forking in a network that has uncontrolled latency (delays), like the Internet. Chains that fork have more reorgs, and reorgs are bad for transaction security. Replacing Bitcoin's longest chain fork choice rule with the GHOST fork choice was shown to be more stable in the presence of latency, allowing block production to be more frequent.
+GHOST 协议源自 [Sompolinsky 和 Zohar 2013 年的一篇论文](https://eprint.iacr.org/2013/881)，其中讨论了如何安全地提高比特币区块链的交易吞吐量。增加区块大小或减少区块之间的间隔，会使链更容易在无法控制延迟的网络（如互联网）中分叉。分叉的链会存在更多的重构，而重构不利于交易的安全性。用 GHOST 分叉选择规则替换比特币的最长链分叉选择规则，会让链在存在延迟的情况下更加稳定，允许更频繁的区块生产。
 
-The name GHOST stands for "Greedy Heaviest-Observed Sub-Tree", which describes how the algorithm works. We will expand on that [below](#finding-the-head-block). In short, GHOST's fork choice doesn't follow the heaviest chain, but the heaviest subtree. It recognises that a vote for a block is not only for that block, but implicitly a vote for each of its ancestors as well, so whole subtrees have an associated weight.
+GHOST 全称是“贪婪的、最重的可被观察子树”，这描述了 GHOST 算法的工作方式。我们将在[下面](#finding-the-head-block)展开讨论这一点。简而言之，GHOST 的分叉选择不是遵循最重的链，而是遵循最重的子树。它认识到对某个区块的投票不仅仅是针对该区块自身，也隐含着对该区块每一个祖先的投票，因此整个子树都会获得相关权重。
 
-Bitcoin never adopted GHOST, and (despite that paper stating otherwise) neither did Ethereum under proof of work, although it had [originally](https://ethereum.org/en/whitepaper/#modified-ghost-implementation) been planned, and the old proof of work "uncle" rewards were related to it.
+比特币从未采用 GHOST。和论文中声称的不同，工作量证明下的以太坊也没有采用这一协议。尽管以太坊[最初](https://ethereum.org/en/whitepaper/#modified-ghost-implementation)计划采用 GHOST，且先前工作量证明中的“叔块（uncle）”奖励与此相关。
 
 ##### LMD
 
-The GHOST protocol that we are using in Ethereum's proof of stake has been extended to be able to handle attestations. In proof of work, the voters are the block proposers. They vote for a branch by building their own block on top of it. In our proof of stake protocol, all validators are voters, and each casts a vote for its view of the network once every 6.4 minutes on average by publishing an attestation. So, under PoS, we have a lot more information available about participants' views of the network.
+以太坊权益证明中使用的 GHOST 协议能够处理认证，是扩展后的版本。在工作量证明中，投票者是区块提议者。他们通过将自己的区块构建在某个特定分支上来为其投票。在权益证明协议中，所有验证者都是投票者。通过发布认证，每个验证者平均每 6.4 分钟为其对网络的视图进行一次投票。因此，在权益证明中，我们可以获得更多关于参与者对网络状态看法的可用信息。
 
-This is what it means to be "message driven", giving us the MD in LMD. The fork choice is driven not by blocks added by proposers, but by messages (attestations, votes) published by all validators.
+这就是所谓的“消息驱动（message driven）”，我们有了 LMD 中的 MD。分叉选择不是由提议者所添加的区块驱动，而是由所有验证者发布的消息（认证、投票）驱动。
 
-The "L" stands for "latest": LMD GHOST takes into account only the _latest_ message from each validator, that is, the most recent attestation that we have received from that validator. All a validator's earlier messages are discarded, but its latest vote is retained and has weight indefinitely.
+这里的“L”代表“最新（latest）”：LMD GHOST 只考虑每个验证者的最新信息，即我们从验证者那里收到的最新认证。验证者之前的所有信息都会被丢弃，但最新投票被保留，并且无限期地具有权重。
 
-As a side note, other versions of message-driven GHOST are available. Vitalik [initially favoured](https://web.archive.org/web/20230630135311/https://nitter.it/VitalikButerin/status/1029906757512966144#m) IMD, "Immediate Message Driven", GHOST. As far as I can tell[^fn-imd-tricky], this retains all attestations indefinitely, and the fork choice chooses based on whatever attestation was current at the time. Then there's [FMD](https://ethresear.ch/t/saving-strategy-and-fmd-ghost/6226?u=benjaminion), "Fresh Message Driven", GHOST, which considers attestations only from the current and previous epochs. And [RLMD](https://ethresear.ch/t/a-simple-single-slot-finality-protocol/14920?u=benjaminion), "Recent Latest Message Driven", GHOST which remembers validators' latest attestations only for a parameterisable number of epochs.
+顺便说一句，还有其他版本的消息驱动的 GHOST 可用。Vitalik [最初倾向](https://web.archive.org/web/20230630135311/https://nitter.it/VitalikButerin/status/1029906757512966144#m)于 IMD GHOST，即“即时消息驱动的（Immediate Message Driven）” GHOST。据我所知[^fn-imd-tricky]，这会无限期地保留所有认证，且分叉选择基于当前最新认证运行。然后是 [FMD](https://ethresear.ch/t/saving-strategy-and-fmd-ghost/6226?u=benjaminion) GHOST，即“新鲜消息驱动（Fresh Message Driven）”的 GHOST，它只考虑当前时段和上一个时段的认证。还有 [RLMD](https://ethresear.ch/t/a-simple-single-slot-finality-protocol/14920?u=benjaminion)，即“近期的最新消息驱动（Recent Latest Message Driven）”的 GHOST，它只记下验证者在可参数化的时段内的最新认证。
 
-[^fn-imd-tricky]: I've yet to find a lucid exposition of IMD GHOST. Looking back through the history on the [original mini-spec](https://ethresear.ch/t/beacon-chain-casper-mini-spec/2760?u=benjaminion) gives some information, but it's hard to understand what was really happening. It was first known as ["recursive proximity to justification"](https://web.archive.org/web/2/https://nitter.it/VitalikButerin/status/1029906887376961536#m), since it was bound up with Casper FFG in a way that LMD GHOST is not.
+[^fn-imd-tricky]: 我至今未能找到对 IMD GHOST 的清晰解释。最初的[迷你版规范](https://ethresear.ch/t/beacon-chain-casper-mini-spec/2760?u=benjaminion)的提供了一些历史信息，但很难理解具体的运作。它最初被称为“递归接近证明（["recursive proximity to justification"](https://web.archive.org/web/2/https://nitter.it/VitalikButerin/status/1029906887376961536#m)）”，因为它和Casper FFG的结合方式与LMD GHOST不同。
 
-#### How it works
+#### 它如何运作
 
-LMD GHOST, above all, is a [fork choice rule](/part2/consensus/preliminaries/#fork-choice-rules). Given a tree of blocks and a collection of votes, LMD GHOST will tell me which block I should consider to be the best head, thereby giving me a linear view of history from that head all the way back to genesis. The decision is based on my local view of the chain, based on the messages (blocks and attestations) that my node has received - remember, there is no "God's eye view", my local view is all that I have to work with, and it may well differ from other nodes' local views. The idea is that honest validators will build their blocks on the best head that they see, and will in turn cast their votes according the best head block they see.
+LMD GHOST 首先是一个[分叉选择规则](/part2/consensus/preliminaries/#fork-choice-rules)。给定一个区块树和一系列投票，LMD GHOST 会告诉我应该将哪个区块视为最佳头块，从而提供一个从该头块一直到创世区块的线性历史视图。这一决策是基于我对链的本地视图，即节点收到的消息（区块和认证）——记住，没有“上帝视角”，我的本地视图是我所能利用的全部，它很可能与其他节点的本地视图不同。我们的想法是，诚实的验证者会根据他们看到的最佳头块来构建自己的区块，并将根据他们看到的最佳头块投票。
 
-Some things that a good fork choice rule will deliver are as follows.[^fn-good-fork-choice-rule]
 
-[^fn-good-fork-choice-rule]: I've adapted this from an old post of Vitalik's, [PoS fork choice rule desiderata](https://ethresear.ch/t/pos-fork-choice-rule-desiderata/2636?u=benjaminion). I'm postponing his finality point for now. I am not aware of much formal analysis of LMD GHOST with respect to properties like these; in fact, our implementation of LMD GHOST [may not do too well](https://arxiv.org/pdf/2302.11326.pdf) in some respects. But these goals are worth bearing in mind as we explore how the mechanism works.
+一个好的分叉选择规则将提供以下几点：[^fn-good-fork-choice-rule]
 
-  - Majority honest progress: if over 50% of nodes build blocks by following the fork choice rule, the chain progresses and is (exponentially) unlikely to revert older blocks.
-  - Stability: the fork choice is a good prediction of the future fork choice.
-  - Manipulation resistance: even if an attacker captures a temporary supermajority of some small set of participants, the attacker is unlikely to be able to revert blocks.
+[^fn-good-fork-choice-rule]: 改编自 Vitalik 的一篇旧帖《PoS 分叉选择规则的理想属性》（https://ethresear.ch/t/pos-fork-choice-rule-desiderata/2636?u=benjaminion）。目前我暂且搁置了他关于最终确定性的观点。我尚未看到多少关于 LMD GHOST 在这些属性方面的正式分析；事实上，我们的 LMD GHOST 实现（https://arxiv.org/pdf/2302.11326.pdf）在某些方面可能表现不佳。但在探索该机制如何运作时，这些目标准
 
-All these points are interrelated. Stability, in particular, is important for block proposers. When I propose a block, I want to be as sure as I possibly can be that the block will remain in the chain forever. Equivalently, that it will not be reorged out. Finding the head block means finding the block that most likely will make my new block the head in the views of other nodes when I build on it.
+  - 多数节点诚实推进：如果超过 50% 的节点按照分叉选择规则构建区块，链就会前进，并且（指数级地）不太可能回滚旧区块。
+  - 稳定性：分叉选择可以很好地预测未来的分叉选择。
+  - 抗操纵性：即使攻击者在一小部分参与者中暂时成为绝对多数，它们也不太可能回滚区块。
 
-We'll divide our exploration of how LMD GHOST works in two. We'll look first at the LMD part, latest messages, and then at the GHOST part, finding the head.
+这几点相互关联。对于区块提议者来说，稳定性尤其重要。提出一个区块时，我希望尽可能地确定该区块永远保留在链上。也就是，我希望尽可能确信它不会被重组出链。找到头块意味着：当我找到它并在其基础上构建新区块时，该头块最有可能使我的构建的新区块成为其他节点的视图中的头块。
 
-##### Latest messages
+我们将一分为二地探讨 LMD GHOST 如何运作。先看 LMD 部分，即最新消息，然后再看 GHOST 部分，即找到头块。
 
-Messages, in this context, are the head block votes found in attestations.
+##### 最新消息
 
-###### Votes in LMD GHOST
+在此处的语境中，“消息”是指认证中对头块的投票。
 
-In an attestation's [data](/part3/containers/dependencies/#attestationdata), the head vote is the `beacon_block_root` field:
+
+###### LMD GHOST 中的投票
+
+在认证的[数据](/part3/containers/dependencies/#attestationdata)中, 头块投票是 `beacon_block_root` 字段:
 
 ```python
 class AttestationData(Container):
