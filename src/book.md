@@ -129,7 +129,7 @@ TODO
 
 TODO
 
-# Part 2: 技术概览 <!-- /part2/ -->
+# 第二部分：技术概览 <!-- /part2/ -->
 
 ## Introduction <!-- /part2/introduction/* -->
 
@@ -724,7 +724,6 @@ LMD GHOST 首先是一个[分叉选择规则](/part2/consensus/preliminaries/#fo
 
 在此处的语境中，“消息”是指认证中对头块的投票。
 
-
 ###### LMD GHOST 中的投票
 
 在认证的[数据](/part3/containers/dependencies/#attestationdata)中, 头块投票是 `beacon_block_root` 字段:
@@ -740,76 +739,80 @@ class AttestationData(Container):
     target: Checkpoint
 ```
 
-Every honest validator makes an attestation exactly once per epoch, containing its vote for the best head block in its view at the moment that it attests. Within each epoch, the validator set is split up so that only $1/32$ of the validators are attesting at each slot. (The `index` field in this structure relates to the attesting validators being further divided into up to 64 [committees](/part2/building_blocks/committees/) at each slot for operational reasons, but this is not relevant to the mechanics of LMD GHOST and we shall ignore it.)
+在每个时段内，每个诚实的验证者都恰好进行一次认证，包括在进行认证时它对最佳头块的投票。在每个时段内，验证者集合被分成 32 份，以使每个时隙中只有 $1/32$ 的验证者进行认证。（该结构的 `index` 字段与进行认证的验证者有关。出于运行效率的考虑，每个时隙中的验证者被进一步细分成最多 64 个[委员会](/part2/building_blocks/committees/)，但这与 LMD GHOST 的机制无关，我们在此先忽略它。）
 
-Nodes receive attestations both directly, via attestation gossip, and indirectly, contained in blocks. In principle, a node could receive attestations through other means &ndash; I could type an attestation in at the keyboard if I wished &ndash; but in practice votes propagate only via attestation gossip and within blocks.
+节点既可以通过认证广播（attestation gossip）直接接收认证，也可以通过包含在区块中的消息间接接收认证。原则上，节点也可以通过其他方式接收认证——如果愿意，我可以在键盘上输入认证——但在实践中，投票只通过认证广播和区块传播。
 
-###### Storing latest messages
+###### 存储最新消息
 
-On receiving an attestation, by whatever means, the node calls the fork choice's [`on_attestation()`](/part3/forkchoice/phase0/#on_attestation) handler. Before proceeding, the `on_attestation()` handler performs some basic [validity checks](/part3/forkchoice/phase0/#validate_on_attestation) on the attestation:
+节点接收到一个认证后，无论通过何种方式，都会调用分叉选择的 [`on_attestation()`](/part3/forkchoice/phase0/#on_attestation) 处理器（handler）。`on_attestation()` 处理器会先对认证进行一些基本的有效性检查（[validity checks](/part3/forkchoice/phase0/#validate_on_attestation)）：
 
-  - Is it too old?
-    - It must be from the current or previous epoch. See [Attestation consideration delay](/part2/consensus/issues/#attestation-consideration-delay).
-  - Is it too new?
-    - It must be from no later than the previous slot. See [Attestation recency](/part2/consensus/issues/#attestation-recency).
-  - Do we know about the block that it is voting for, the `beacon_block_root`?
-    - We must have received that block already. If not we might try to fetch it from a peer.
-  - Is its signature correct?
-    - Validators sign attestations and are accountable for them.
-  - Is the attestation slashable?
-    - We must ignore attestations that conflict with other attestations. See [Attestation equivocation](/part2/consensus/issues/#attestation-equivocation).
+  - 它是不是太旧了？
+    - 它必须来自当前或上一个时段。参见 [Attestation consideration delay](/part2/consensus/issues/#attestation-consideration-delay)。
+  - 它是不是太新了？
+    - 它不能晚于上一个时隙。参见 [Attestation recency](/part2/consensus/issues/#attestation-recency)。
+  - 我们是否知道它投票支持的区块，即 `beacon_block_root`？
+    - 我们必须已经收到那个区块。如果没有，我们可能会尝试从对等节点那里获取它。
+  - 它的签名是否正确？
+    - 验证者对认证签名并对其负责。
+  - 该认证是否是可被罚没的（slashable）？
+    - 我们必须忽略与其他认证相冲突的认证。参见 [Attestation equivocation](/part2/consensus/issues/#attestation-equivocation)。
 
-After passing these and some other checks, the attestation is considered for insertion into the node's Store, which is its repository of information about the state of the chain: its view. This is done in [`update_latest_messages()`](/part3/forkchoice/phase0/#update_latest_messages). If we don't already have a head block vote for the validator, then this one is stored for it. If we have a head block vote for the validator, then this one replaces it if it is more recent.
+在通过这些和其他一些检查后，认证被考虑插入节点的存储库（Store）中，这是其关于链状态的信息库，即节点的视图。这是在 [`update_latest_messages()`](/part3/forkchoice/phase0/#update_latest_messages) 中完成的。如果我们还没有该验证者的头块投票，那么现在就可以存储。如果我们已经有验证者的头块投票，而当前认证是更近期的，它就会替代原来的投票。
 
-Over time, then, a node's Store builds up a list containing a single latest vote for each validator that it has heard from.
+随着时间的推移，节点的存储库会逐渐建立起一个列表，其中包含每个验证者的最新投票。
 
-Note that a vote can be inserted in the store only if we heard about it in the same epoch or the epoch after it was made. However, once it is in the store it remains there indefinitely, and continues to contribute to the fork choice until it is updated with a more recent vote. This is a key difference between LMD GHOST and, say, the [Goldfish protocol](https://arxiv.org/pdf/2209.03255.pdf), or [RLMD GHOST](https://arxiv.org/pdf/2302.11326.pdf).
+请注意，只有我们在与投票所完成的同一个时段或在该时段后的时段获取它，投票才能被插入存储库。然而，一旦投票在存储库中，它就会无限期地留在那里，并继续为分叉选择做出贡献，直到它被更近期的投票更新。这是 LMD GHOST 与例如 [Goldfish 协议](https://arxiv.org/pdf/2209.03255.pdf)或 [RLMD GHOST](https://arxiv.org/pdf/2302.11326.pdf) 之间的一个关键区别。
 
-##### Finding the head block
+##### 寻找头块
 
-In essence, the LMD GHOST fork choice rule is a function $\text{GetHead}(\text{Store}) \rightarrow \text{HeadBlock}$. As we've seen, a node's Store is its view of the world: all the relevant information it has received that could affect the fork choice. For the pure LMD GHOST algorithm we are looking at here, the relevant parts of the [Store](/part3/forkchoice/phase0/#store) are the following.
+本质上，LMD GHOST 分叉选择规则是一个函数 $\text{GetHead}(\text{Store}) \rightarrow \text{HeadBlock}$。正如我们所见，节点的存储库是其对世界的视图：它所接收到的所有可能影响分叉选择的相关信息。对于我们在这里看到的纯粹 LMD GHOST 算法，存储库（[Store](/part3/forkchoice/phase0/#store)）的相关信息如下。
 
-  - The block tree, which is just a list of blocks. The blocks' parent links join them logically into a tree.
-  - The list of latest messages (votes) from validators.
-  - The validators' [effective balances](/part2/incentives/balances/) (based on some state) as these provide the weights used in the algorithm.
+  - 区块树（它只是一个区块列表）。区块的家长级链接将它们在逻辑上连成一棵树。
+  - 来自于验证者的最新消息（投票）列表。
+  - 验证者的有效余额（[effective balances](/part2/incentives/balances/)）(基于某种状态)，因其提供了算法中使用的权重。
 
-The goal of the GHOST algorithm is to select a single leaf block from the given block tree, where a leaf is a block without any descendants. This will be our chosen head block.
+GHOST 算法的目标是从给定的区块树中选择一个叶子区块，其中叶子是指一个没有任何后代的区块。这将是我们所选择的头块。
 
-We are going to assume that all the blocks in our block tree descend from a single root block. In a pure GHOST algorithm, that would be the genesis block: by definition, all blocks must descend from genesis. In our full consensus implementation, that root block will be the last justified checkpoint block. For our present purposes, all we need to know is that the GHOST algorithm starts from a given block, and ignores all blocks not descended from that block.
+我们将假设区块树中的所有区块都源自一个根区块。在纯粹的 GHOST 算法中，那将是创世区块：根据定义，所有区块都必须源自创世区块。在完整的共识实现中，那个根区块将是最后一个被合理化的检查点区块。就我们当前的目的而言，只需知道 GHOST 算法从一个给定的区块开始，并忽略所有不是从该区块派生出来的区块。
 
-###### Get weight
+###### 获取权重
 
-The first thing we do is calculate the "weight" of each branch in the tree. A branch's weight is its score, in some sense.
+我们首先做的是计算树中每个分支的“权重”。从某种意义上说，一个分支的权重就是它的得分。
 
-The weight of a vote is the [effective balance](/part2/incentives/balances/) of the validator that made the vote. This will usually be 32 ETH, the maximum effective balance, but could be less. A vote, recall, is the latest message we have from that validator.
+投票的权重是进行投票的验证者的[有效余额](/part2/incentives/balances/)。这通常是 32 个以太币，即最大有效余额，但也可能更少。前面说，投票就是我们从验证者那里得到的最新消息。
 
-The weight of a branch is the weight of the votes for the block that roots it, plus the weights of that block's child branches. By including the weights of child branches, we are acknowledging that a vote for a block is also a vote for each of the ancestors of that block. The weight of a branch consisting of only a leaf block will be just the weight of the votes for that block.
+一个分支的权重是其根部区块得到的投票权重，加上该块子分支的权重。通过包括子分支的权重，我们承认对一个块的投票也是对该块每个祖先的投票。只由一个叶块组成的分支的权重将仅是该叶块获得票数的权重。
 
 <a id="img_annotated_forkchoice_get_weight_0"></a>
 <figure class="diagram" style="width: 90%">
 
-![Diagram of a block tree with branch weights and vote weights shown for each block.](images/diagrams/annotated-forkchoice-get-weight-0.svg)
+![显示每个区块的分支权重和投票权重的区块树示意图。](images/diagrams/annotated-forkchoice-get-weight-0.svg)
 
 <figcaption>
 
-$B_N$ is the sum of the effective balances of the validators whose most recent head vote was for block $N$, and $W_N$ is the weight of the branch rooted at block $N$.
+$B_N$ 是将最新的头块投票给了区块 $N$ 的验证者们, $W_N$ 是以区块 $N$ 为根的分支的权重。
 
 </figcaption>
 </figure>
 
-Some obvious relationships apply between the weights, $W_x$, of branches, and $B_x$, the weights of the votes for blocks.
+分支的权重 $W_x$ 和对区块的投票权重 $B_x$ 间存在一些明显的关系。
 
-  - For a branch comprising only a leaf block, $L$, $W_L = B_L$.
-  - The weight of a branch is the weight of the votes for the block at its root plus the sum of the weights of all branches below it. So, in the diagram, $W_1 = B_1 + W_2 + W_3$.
-  - The weight of a branch is the sum of the weights of all votes for blocks in the subtree that forms the branch.
+  - 对于只包含一个叶块的分支 $L$, $W_L = B_L$.
+  - 一个分支的权重是其对根部区块投票的权重加上其下所有分支的权重之和。所以，在图表中，$W_1 = B_1 + W_2 + W_3$.
+  - 一个分支的权重是构成该分支的子树中的所有区块所获得的投票权重的和。
 
-Since votes always carry a positive weight, no block will have a greater weight than the root block, and the root block's weight is the sum of the weights of all the votes for blocks in the tree. Every validator has at most one latest message &ndash; that is, one vote &ndash;, so that weight is bounded above by the total effective balance of all active validators.[^fn-ignoring-proposer-boost]
+由于投票总是带有正权重，因此没有任何区块的权重会大于根块的权重，根区块的权重是树中所有区块的投票权重之和。每个验证者最多有一个最新消息——也就是一票——因此，权重被限制在所有活跃验证者的总有效余额之下。[^fn-ignoring-proposer-boost]
 
-[^fn-ignoring-proposer-boost]: Ignoring proposer boost, which we shall deal with [later](/part2/consensus/issues/#proposer-boost).
+[^fn-ignoring-proposer-boost]: 当前忽略了提议者权重提升（proposer boost），我们将在稍后 (/part2/consensus/issues/#proposer-boost)讨论。
 
-###### Get head
+###### 获取头块
 
-Once we have the weight of each branch or subtree, the algorithm proceeds recursively. Given a block, we select the heaviest branch descending from it. We then repeat the process with the block at that branch's root. If a block has only one child, then the choice is obvious and there is no work to do. If two or more branches have equal weight, we arbitrarily choose the branch rooted at the child block with the highest block hash value. Eventually we will reach a block with no children. This is a leaf block and will be the output of the algorithm.
+一旦我们得到每个分支或子树的权重，算法就会递归进行。给定一个区块，我们选择从它开始的最重分支。然后，我们对位于该分支根部的区块重复这个过程。如果某区块只有一个子块，那么选择显而易见，不需要做任何工作。如果两个或更多分支的权重相同，我们就任意选择一个根位于具有最高区块哈希值的子区块的分支。最终会找到一个没有子块的区块。这是一个叶子区块，也将是算法的输出结果。
+
+展开 GHOST，我们就会发现该算法：是贪婪的（Greedy），即立即选取最重的可被观察的（Heaviest-Observed）分支，而不进一步搜寻；并且处理子树（Sub-Trees），一个分支的权重是子树中所有区块投票权重的总和。
+
+下面是一个简单的例子。在图中，我区分了（1）特定区块的票数的权重，即附在每个区块上的数字；（2）分支的权重，我将其添加到连接区块与其家长区块的线上。
 
 Unpacking the GHOST name, we see that the algorithm: is Greedy, meaning that it takes the Heaviest-Observed branch immediately, without looking further; and deals with Sub-Trees, the weight of a branch being the sum of all the weights of votes for blocks in the subtree.
 
@@ -7169,68 +7172,72 @@ TODO
 
 TODO
 
-# Part 3: Annotated Specification <!-- /part3/ -->
+# 第三部分: 规范注解 <!-- /part3/ -->
 
-## Introduction <!-- /part3/introduction/ -->
+## 介绍 <!-- /part3/introduction/ -->
 
-The beacon chain specification is the guts of the machine. Like the guts of a computer, all the components are showing and the wires are hanging out: everything is on display. In the course of the next sections I will be dissecting the entire core beacon chain specification line by line. My aim is not only to explain how things work, but also to give some historical context: some of the reasoning behind how we ended up where we are today.
+信标链规范是机器的内脏。就像计算机的内部结构，所有组件都暴露在外，电线悬挂可见：一览无余。接下来的章节，我将逐行剖析整个核心信标链规范。我的目标不仅是解释其工作原理，还要提供一些历史背景：我们走到今天这一步的原因。
 
-[Early versions](https://github.com/ethereum/consensus-specs/blob/86ec833172704ea0889b5d595d17f45ba1a6676f/specs/core/0_beacon-chain.md) of the specs were written with much more narrative and explanation than today's. Over time, they were coded up in Python for better precision and the benefits of being executable. However, in that process, most of the explanation and intuition was removed.[^fn-justinification] Vitalik has created his own [annotated specifications](https://github.com/ethereum/annotated-spec) that covers many of the key insights. It's hard to compete with Vitalik, but my intention here is to go one level deeper in thoroughness and detail. And perhaps to give an independent perspective.
+规范的[早期版本](https://github.com/ethereum/consensus-specs/blob/86ec833172704ea0889b5d595d17f45ba1a6676f/specs/core/0_beacon-chain.md)包含了更多的叙述和解释。随着时间推移，这些规范被用Python编码，更加精确，也具有可执行的好处。然而，在这一过程中，大部分解释和直观说明被移除。[^fn-justinification] Vitalik 自己创作了一份[规范注解](https://github.com/ethereum/annotated-spec)，其中包含许多重要洞见。很难与他相媲美，但我的目标是透彻和细致。或许还能提供一种独立的视角。
 
-[^fn-justinification]: A process called "Justinification". Iykyk `;-)`
+[^fn-justinification]: 这一过程被称为“Justinification”。懂的都懂 ;-)
 
-As and when other parts of the book get written I will add links to the specific chapters on each topic (for example on Simple Serialize, consensus, networking).
+随着这本书的其他部分编写完成，我会添加指向每个主题的具体章节的链接（例如简单序列化（Simple Serialize）、共识、网络）。
 
-Note that the online annotated specification is available in two forms:
+请注意，在线规范注解可通过以下两种方式获得：
+- 在书的第3部分 (/part3/)中按章节划分；
+- 以及一个独立的单页版本 (/annotated-spec/)，便于搜索。
 
-  - divided into chapters in [Part 3](/part3/) of the main book, and
-  - as a standalone [single page](/annotated-spec/) that's useful for searching.
+两者内容完全相同。
 
-The contents of each are identical.
+### 版本信息
 
-### Version information
+这一版的《升级以太坊》基于信标链规范的 Capella 版本，对应 2023 年 4 月 18 日发布的 [Release v1.3.0](https://github.com/ethereum/consensus-specs/releases/tag/v1.3.0)。
 
-This edition of Upgrading Ethereum is based on the Capella version of the beacon chain specification, and corresponds to [Release v1.3.0](https://github.com/ethereum/consensus-specs/releases/tag/v1.3.0), made on the 18th of April, 2023.
+Capella 版本没有单一的规范文档。相反，它包含 [Phase 0 规范]((https://github.com/ethereum/consensus-specs/blob/v1.3.0/specs/phase0/beacon-chain.md))、[Altair 规范变更](https://github.com/ethereum/consensus-specs/blob/v1.3.0/specs/altair/beacon-chain.md)、[Bellatrix 规范变更](https://github.com/ethereum/consensus-specs/blob/v1.3.0/specs/bellatrix/beacon-chain.md)以及 [Capella 规范变更](https://github.com/ethereum/consensus-specs/blob/v1.3.0/specs/capella/beacon-chain.md)。每个版本都在前一版本的基础上，以类似文本差异的方式构建。此外，这些文档在各个升级间并非一成不变。例如，作为 Capella 版本的一部分，Phase 0 规范 也[更新](https://github.com/ethereum/consensus-specs/compare/v1.2.0..v1.3.0#diff-0e824f6ab9ff551699ddf9d108c0b3705ce41e2bd72f68c7f1f32269e58f0bdf)过。这使得对整个规范的梳理相当复杂和令人困惑。
 
-There is no single specification document that covers Capella. Rather, we have the [Phase&nbsp;0 specification](https://github.com/ethereum/consensus-specs/blob/v1.3.0/specs/phase0/beacon-chain.md), the [Altair specification changes](https://github.com/ethereum/consensus-specs/blob/v1.3.0/specs/altair/beacon-chain.md), the [Bellatrix specification changes](https://github.com/ethereum/consensus-specs/blob/v1.3.0/specs/bellatrix/beacon-chain.md), and the [Capella specification changes](https://github.com/ethereum/consensus-specs/blob/v1.3.0/specs/capella/beacon-chain.md). Each builds on top of the previous version in a kind of text-based diff. In addition, these documents are not stable between upgrades. For example, the Phase&nbsp;0 specs [were updated](https://github.com/ethereum/consensus-specs/compare/v1.2.0..v1.3.0#diff-0e824f6ab9ff551699ddf9d108c0b3705ce41e2bd72f68c7f1f32269e58f0bdf) as part of the Capella release. This can all be rather confusing and difficult to track.
+为了让本章内容更易于理解，我整合了截至目前的全部规范，（大部分）省略了已被取代的部分[^fn-superseded-parts]。总体上，我尽量保留了原始文档的结构，以便读者可以更轻松地将本文与原始规范对照阅读。不过，我将独立的 [BLS 文档](https://github.com/ethereum/consensus-specs/blob/v1.3.0/specs/altair/bls.md)融入到本文的叙述中。
 
-To make the whole thing easier to follow in this chapter, I have consolidated all of the specifications to date, (mostly) omitting parts that have been superseded[^fn-superseded-parts]. In general, I have tried to reflect the existing structure of the documents to make them easier to read side-by-side with the original specs. However, I have included the separate [BLS](https://github.com/ethereum/consensus-specs/blob/v1.3.0/specs/altair/bls.md) document into the flow of this one.
+[^fn-superseded-parts]: 如[前言](/preface/#versions)中所说，仍然可以找到旧版本。
 
-[^fn-superseded-parts]: You can still find old versions, as described in the [Preface](/preface/#versions).
+#### 另见
 
-#### See also
+除了上述引用的规范文档外，还有一些与当前和历史相关的文档：
 
-In addition to the spec documents referenced above, a few other current and historical documents exist.
+- Vitalik 的[规范注解](https://github.com/ethereum/annotated-spec)，涵盖 Phase 0、Altair、合并（The Merge）及后续内容。
 
-  - Vitalik's [annotated specifications](https://github.com/ethereum/annotated-spec), covering Phase&nbsp;0, Altair, The Merge, and beyond.
-  - [Serenity Design Rationale](https://notes.ethereum.org/@vbuterin/rkhCgQteN)
-  - [Phase 0 for Humans \[v0.10.0\]](https://notes.ethereum.org/@djrtwo/Bkn3zpwxB)
-  - [Phase 0 design notes](https://notes.ethereum.org/@JustinDrake/rkPjB1_xr) (Justin Drake)
-  - My own [Phase&nbsp;0 annotated specification](https://benjaminion.xyz/eth2-annotated-spec/phase0/beacon-chain/) remains available for historical interest.
+- [Serenity 设计原理](https://notes.ethereum.org/@vbuterin/rkhCgQteN)
 
-Hsiao-Wei Wang gave a [Lightning Talk](https://archive.devcon.org/archive/watch/6/how-to-use-executable-consensus-pyspec/) on the consensus Pyspec at Devcon VI that briefly describes its structure and how it can be executed.
+- [Phase 0 通俗版 \[v0.10.0\]](https://notes.ethereum.org/@djrtwo/Bkn3zpwxB)
 
-## Types, Constants, Presets, and Configuration <!-- /part3/config/ -->
+- [Phase 0 设计笔记](https://notes.ethereum.org/@JustinDrake/rkPjB1_xr)（Justin Drake）
 
-### Preamble
+- 我自己的 [Phase 0 规范注解](https://benjaminion.xyz/eth2-annotated-spec/phase0/beacon-chain/)，作为历史。
 
-For some, a chapter on constants, presets and parameters will seem drier than the Namib Desert, but I've long found these to be a rich and fertile way in to the ideas and mechanisms we'll be unpacking in detail in later chapters. Far from being a desert, this part of the spec bustles with life.
+Hsiao-Wei Wang 在第六届 Devcon 上进行了一场[快闪演讲](https://archive.devcon.org/archive/watch/6/how-to-use-executable-consensus-pyspec/)，简要介绍了共识 Python 规范的结构及其执行。
 
-The foundation is laid with a set of custom data types. The beacon chain specification is executable in Python; the data types defined at the top of the spec represent the fundamental quantities that will reappear frequently.
+## 类型、常量、预设和配置（Types, Constants, Presets, and Configuration）<!-- /part3/config/ -->
 
-Then &ndash; with constants, presets, and parameters &ndash; we will examine the numbers that define and constrain the behaviour of the chain. Each of these quantities tells a story. Each parameter encapsulates an insight, or a mechanism, or a compromise. Why is it here? How has it changed over time? Where does its value come from?
+### 序言
 
-### Custom Types <!-- /part3/config/types/ -->
+对一些人来说，关于常量、预设和参数的章节可能比纳米比沙漠还要枯燥，但长久以来我一直发现这些是进入我们将在后续章节中详细解释的思想和机制的丰富而肥沃的途径。共识层规范的这一部分远非沙漠，它充满生机。
 
-The specification defines the following Python custom types, "for type hinting and readability": the data types defined here appear frequently throughout the spec; they are the building blocks for everything else.
+一套自定义的数据类型奠定了基础。信标链规范可在 Python 中执行；在规范顶部定义的数据类型代表了将频繁出现的基本量。
 
-Each type has a name, an "SSZ equivalent", and a description. [SSZ](/part2/building_blocks/ssz/) is the encoding method used to pass data between clients, among other things. Here it can be thought of as just a primitive data type.
+然后——通过常量、预设和参数——我们将检视定义和限制链的行为的数字。这些量中的每一个都讲述了一个故事。每个参数都封装了一个洞察、机制或妥协。它为什么在这里？它随着时间的推移有何变化？它的价值从何而来？
 
-Throughout the spec, (almost) all integers are unsigned 64-bit numbers, `uint64`, but this hasn't always been the case.
+### 自定义类型 <!-- /part3/config/types/ -->
+ <!-- /part3/config/types/ -->
 
-Regarding "unsigned", there was [much discussion](https://github.com/ethereum/consensus-specs/issues/626) around whether Eth2 should use signed or unsigned integers, and eventually unsigned was chosen. As a result, it is critical to preserve the order of operations in some places to avoid inadvertently causing underflows since negative numbers are forbidden.
+“为了类型提示和可读性”，信标连规范定义了以下自定义 Python 类型：这些数据类型在规范中频繁出现；它们是其他一切的基础。
 
-And regarding "64-bit", early versions of the spec used [other](https://github.com/ethereum/consensus-specs/commit/4c3c8510d4abf969a7170fce10dcfb5d4df408c8) bit lengths than 64 (a "[premature optimisation](https://wiki.c2.com/?PrematureOptimization)"), but arithmetic integers are now [standardised at 64 bits](https://github.com/ethereum/consensus-specs/pull/1746) throughout the spec, the only exception being [`ParticipationFlags`](#participationflags), introduced in the Altair upgrade, which has type `uint8`, and is really a `byte` type.
+每种类型都有一个名称、一个“底层 SSZ 类型（SSZ equivalent）”和一个描述。除了其他用途，[SSZ](/part2/building_blocks/ssz/) 还是在客户端之间传递数据的编码方法。在这里，它可以被简单地视为一种基本数据类型。
+
+在规范中，(几乎) 所有整数都是无符号 64 位数，`uint64`，但并非一直如此。
+
+围绕以太坊2.0应该使用有符号还是无符号整数进行过[大量讨论](https://github.com/ethereum/consensus-specs/issues/626)，最终选择了无符号整数。因此，在某些地方保持运算顺序至关重要，以避免因为负数被禁止而导致意外下溢。
+
+关于"64位"，规范的早期版本使用了[其他](https://github.com/ethereum/consensus-specs/commit/4c3c8510d4abf969a7170fce10dcfb5d4df408c8)位长度而非64位（一种"[过早优化](https://wiki.c2.com/?PrematureOptimization)"），但算术整数现在在整个规范中被[标准化为64位](https://github.com/ethereum/consensus-specs/pull/1746)，唯一的例外是在Altair升级中引入的[`ParticipationFlags`](#participationflags)，它的类型是`uint8`，实际上是一个`byte`类型。
 
 <a id="table_custom_types"></a>
 
